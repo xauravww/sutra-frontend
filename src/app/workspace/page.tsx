@@ -11,6 +11,17 @@ interface PageNote {
   text: string;
 }
 
+interface DocEntry {
+  id: string;
+  name: string;
+  size: number;
+  /** pdf.js PDFDocumentProxy */
+  pdf: any;
+  numPages: number;
+  /** page the reader is on, kept per document */
+  page: number;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant" | "system";
@@ -34,6 +45,12 @@ const ACTION_TITLES: Record<string, string> = {
   police: "Police Station / IO Details",
 };
 
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /**
  * Per-page analysis seam.
  * TODO: replace the stub with the backend call once the per-page endpoint exists
@@ -50,15 +67,22 @@ async function summarisePage(pageNo: number): Promise<PageNote> {
 
 /* ─── Page ─── */
 export default function WorkspacePage() {
-  /* PDF state */
-  const [pdfName, setPdfName] = useState<string>("No document loaded");
-  const [pdfLoaded, setPdfLoaded] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
+  /* Document state — any number of PDFs, one active at a time */
+  const [docs, setDocs] = useState<DocEntry[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [opening, setOpening] = useState(0);
   const [zoom, setZoom] = useState(100);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [panning, setPanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pdfDocRef = useRef<any>(null);
+  const renderTaskRef = useRef<any>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(
+    null
+  );
+
+  const activeDoc = docs.find((d) => d.id === activeId) ?? null;
 
   /* Chat state */
   const [messages, setMessages] = useState<Message[]>([
@@ -87,15 +111,32 @@ export default function WorkspacePage() {
   const [recording, setRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  /* Follow the stream only while the reader is already near the bottom,
-     so scrolling back through a 100-page run is not yanked away. */
+  /* Follow the newest output while the reader is at the bottom, or after they
+     themselves triggered it (send / quick action). Scrolling up parks the
+     view, so paging back through a 100-page run is never yanked away. */
+  const followRef = useRef(true);
   useEffect(() => {
     const box = messagesBoxRef.current;
     if (!box) return;
     const nearBottom =
       box.scrollHeight - box.scrollTop - box.clientHeight < 160;
-    if (nearBottom) box.scrollTop = box.scrollHeight;
+    if (followRef.current || nearBottom) box.scrollTop = box.scrollHeight;
   }, [messages]);
+
+  /* Jump to the newest message no matter where the reader is, and resume
+     following the stream from there. */
+  const scrollToLatest = useCallback(() => {
+    followRef.current = true;
+    const box = messagesBoxRef.current;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, []);
+
+  const onMessagesScroll = useCallback(() => {
+    const box = messagesBoxRef.current;
+    if (!box) return;
+    followRef.current =
+      box.scrollHeight - box.scrollTop - box.clientHeight < 160;
+  }, []);
 
   const pushMessage = useCallback((m: Omit<Message, "timestamp">) => {
     setMessages((prev) => [...prev, { ...m, timestamp: new Date() }]);
@@ -133,45 +174,162 @@ export default function WorkspacePage() {
     });
   }, []);
 
-  const openPdf = useCallback(
-    async (file: File) => {
+  /* ─── File handling — accepts any number of PDFs, at any time ─── */
+  const addFiles = useCallback(
+    async (incoming: FileList | File[]) => {
+      const files = Array.from(incoming).filter(
+        (f) => f.type === "application/pdf"
+      );
+      if (!files.length) return;
+
+      setOpening((n) => n + files.length);
       await loadPdfJs();
       const lib = (window as any).pdfjsLib;
-      const data = new Uint8Array(await file.arrayBuffer());
-      const pdf = await lib.getDocument({ data }).promise;
-      pdfDocRef.current = pdf;
-      setPdfName(file.name);
-      setTotalPages(pdf.numPages);
-      setCurrentPage(1);
-      setPdfLoaded(true);
-      renderPage(pdf, 1);
+
+      for (const file of files) {
+        try {
+          const data = new Uint8Array(await file.arrayBuffer());
+          const pdf = await lib.getDocument({ data }).promise;
+          const entry: DocEntry = {
+            id: crypto.randomUUID(),
+            name: file.name,
+            size: file.size,
+            pdf,
+            numPages: pdf.numPages,
+            page: 1,
+          };
+          setDocs((prev) => [...prev, entry]);
+          setActiveId(entry.id);
+        } catch {
+          /* unreadable / encrypted file — skip it, keep the rest */
+        } finally {
+          setOpening((n) => n - 1);
+        }
+      }
     },
     [loadPdfJs]
   );
 
-  const renderPage = useCallback(
-    async (pdf: any, num: number) => {
-      const page = await pdf.getPage(num);
-      const scale = (zoom / 100) * 1.5;
-      const vp = page.getViewport({ scale });
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      canvas.width = vp.width;
-      canvas.height = vp.height;
-      await page
-        .render({ canvasContext: canvas.getContext("2d"), viewport: vp })
-        .promise;
+  const removeDoc = useCallback(
+    (id: string) => {
+      const idx = docs.findIndex((d) => d.id === id);
+      if (idx === -1) return;
+      const next = docs.filter((d) => d.id !== id);
+      setDocs(next);
+      if (activeId === id) {
+        setActiveId(next[Math.min(idx, next.length - 1)]?.id ?? null);
+      }
+      /* release the parsed document so N files do not pile up in memory */
+      docs[idx].pdf?.destroy?.();
     },
-    [zoom]
+    [docs, activeId]
   );
 
-  /* ─── File handling ─── */
-  const handleFile = useCallback(
-    (file: File) => {
-      if (file.type === "application/pdf") openPdf(file);
+  const setActivePage = useCallback(
+    (next: (p: number) => number) => {
+      setDocs((prev) =>
+        prev.map((d) =>
+          d.id === activeId
+            ? {
+                ...d,
+                page: Math.min(Math.max(1, next(d.page)), d.numPages),
+              }
+            : d
+        )
+      );
     },
-    [openPdf]
+    [activeId]
   );
+
+  /* ─── Pan (drag to scroll the zoomed page) ─── */
+  const fitWidth = useCallback(() => {
+    const box = viewportRef.current;
+    const canvas = canvasRef.current;
+    if (!box || !canvas || !canvas.width) return;
+    const avail = box.clientWidth - 32; /* matches the p-4 gutter */
+    setZoom((z) =>
+      Math.min(400, Math.max(50, Math.round((z * avail) / canvas.width)))
+    );
+  }, []);
+
+  const startPan = useCallback((e: React.PointerEvent) => {
+    /* left button only, and never on the empty-state dropzone */
+    if (e.button !== 0) return;
+    const box = viewportRef.current;
+    if (!box) return;
+    panRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      left: box.scrollLeft,
+      top: box.scrollTop,
+    };
+    box.setPointerCapture(e.pointerId);
+    setPanning(true);
+  }, []);
+
+  const movePan = useCallback((e: React.PointerEvent) => {
+    const start = panRef.current;
+    const box = viewportRef.current;
+    if (!start || !box) return;
+    box.scrollLeft = start.left - (e.clientX - start.x);
+    box.scrollTop = start.top - (e.clientY - start.y);
+  }, []);
+
+  const endPan = useCallback((e: React.PointerEvent) => {
+    if (!panRef.current) return;
+    panRef.current = null;
+    viewportRef.current?.releasePointerCapture(e.pointerId);
+    setPanning(false);
+  }, []);
+
+  /* Esc leaves fullscreen; F toggles it when not typing */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        el?.tagName === "INPUT" ||
+        el?.tagName === "TEXTAREA" ||
+        el?.isContentEditable;
+      if (e.key === "Escape") setFullscreen(false);
+      if (!typing && (e.key === "f" || e.key === "F")) {
+        setFullscreen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  /* Render whenever the active document, its page, or the zoom changes —
+     the previous render task is cancelled so the canvas is never shared. */
+  useEffect(() => {
+    const doc = docs.find((d) => d.id === activeId);
+    const canvas = canvasRef.current;
+    if (!doc || !canvas) return;
+
+    let stale = false;
+    (async () => {
+      renderTaskRef.current?.cancel?.();
+      const page = await doc.pdf.getPage(doc.page);
+      if (stale) return;
+      const vp = page.getViewport({ scale: (zoom / 100) * 1.5 });
+      canvas.width = vp.width;
+      canvas.height = vp.height;
+      const task = page.render({
+        canvasContext: canvas.getContext("2d"),
+        viewport: vp,
+      });
+      renderTaskRef.current = task;
+      try {
+        await task.promise;
+      } catch {
+        /* superseded by a newer render */
+      }
+    })();
+
+    return () => {
+      stale = true;
+    };
+  }, [docs, activeId, zoom, fullscreen]);
 
   /* ─── Chat ─── */
   const sendMessage = useCallback(async () => {
@@ -187,6 +345,7 @@ export default function WorkspacePage() {
     };
 
     setMessages((prev) => [...prev, userMsg]);
+    scrollToLatest();
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "";
     setSending(true);
@@ -203,8 +362,9 @@ export default function WorkspacePage() {
     };
 
     setMessages((prev) => [...prev, aiMsg]);
+    scrollToLatest();
     setSending(false);
-  }, [input, sending]);
+  }, [input, sending, scrollToLatest]);
 
   /* ─── Quick actions — results stream into the chat ─── */
   const runAction = useCallback(
@@ -215,12 +375,17 @@ export default function WorkspacePage() {
       setPanelOpen(false);
       cancelRef.current = false;
       setSending(true);
+      /* The reader pressed the button, so take them to the new output
+         even if they had scrolled up */
+      scrollToLatest();
 
       pushMessage({
         id: crypto.randomUUID(),
         role: "user",
         kind: "text",
-        content: ACTION_TITLES[action] ?? "Analysis",
+        content: activeDoc
+          ? `${ACTION_TITLES[action] ?? "Analysis"} — ${activeDoc.name}`
+          : ACTION_TITLES[action] ?? "Analysis",
       });
 
       /* Overview card — same content as before, now a chat message */
@@ -232,20 +397,22 @@ export default function WorkspacePage() {
         content: ACTION_TITLES[action] ?? "Analysis",
       });
 
-      /* Case Summary also walks the document page by page, however long it is */
-      if (action === "summary" && pdfLoaded && totalPages > 0) {
+      /* Case Summary also walks the active document page by page,
+         however long it is */
+      if (action === "summary" && activeDoc) {
+        const total = activeDoc.numPages;
         const streamId = crypto.randomUUID();
         pushMessage({
           id: streamId,
           role: "assistant",
           kind: "pages",
-          content: "Page-by-page summary",
+          content: `Page-by-page summary — ${activeDoc.name}`,
           pages: [],
-          pageTotal: totalPages,
+          pageTotal: total,
           streaming: true,
         });
 
-        for (let p = 1; p <= totalPages; p++) {
+        for (let p = 1; p <= total; p++) {
           if (cancelRef.current) break;
           const note = await summarisePage(p);
           appendPage(streamId, note);
@@ -265,7 +432,7 @@ export default function WorkspacePage() {
 
       setSending(false);
     },
-    [sending, pdfLoaded, totalPages, pushMessage, patchMessage, appendPage]
+    [sending, activeDoc, pushMessage, patchMessage, appendPage, scrollToLatest]
   );
 
   const stopStream = useCallback(() => {
@@ -316,115 +483,265 @@ export default function WorkspacePage() {
 
       <div className="grid grid-cols-2 flex-1 overflow-hidden max-lg:grid-cols-1 max-lg:grid-rows-[45vh_1fr]">
         {/* ─── LEFT: PDF Viewer ─── */}
-        <section className="flex flex-col border-r border-sutra-line bg-[#F7F8FB] max-lg:border-r-0 max-lg:border-b">
-          {/* PDF toolbar */}
-          <div className="flex items-center justify-between gap-2.5 px-[18px] py-2.5 border-b border-sutra-line bg-white flex-none min-h-[54px]">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <section
+          className={
+            fullscreen
+              ? "fixed inset-0 z-50 flex flex-col bg-[#F7F8FB]"
+              : "flex flex-col border-r border-sutra-line bg-[#F7F8FB] max-lg:border-r-0 max-lg:border-b"
+          }
+        >
+          {/* Document bar — one chip per open PDF, add/remove/switch */}
+          <div className="flex items-center gap-2.5 px-3 py-2 border-b border-sutra-line bg-white flex-none min-h-[54px]">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto">
+              {docs.length === 0 && opening === 0 && (
+                <span className="flex items-center gap-2 px-1.5 text-[15px] font-semibold text-sutra-ink-3">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    className="w-5 h-5 flex-none"
+                  >
+                    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 3v5h5" />
+                  </svg>
+                  No document loaded
+                </span>
+              )}
+
+              {docs.map((d) => (
+                <span
+                  key={d.id}
+                  className={`group flex items-center gap-2 flex-none max-w-[240px] pl-2.5 pr-1.5 h-[36px] rounded-[10px] border-[1.5px] transition-colors ${
+                    d.id === activeId
+                      ? "border-navy bg-tint"
+                      : "border-sutra-line bg-white hover:border-[#C6CDD7]"
+                  }`}
+                >
+                  <button
+                    onClick={() => setActiveId(d.id)}
+                    title={`${d.name} · ${d.numPages} page${
+                      d.numPages === 1 ? "" : "s"
+                    } · ${formatSize(d.size)}`}
+                    className="flex items-center gap-2 min-w-0 bg-transparent border-0 cursor-pointer"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      className={`w-[17px] h-[17px] flex-none ${
+                        d.id === activeId ? "text-navy" : "text-sutra-ink-3"
+                      }`}
+                    >
+                      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 3v5h5" />
+                    </svg>
+                    <span
+                      className={`text-[13.5px] font-semibold truncate ${
+                        d.id === activeId ? "text-navy" : "text-sutra-ink-2"
+                      }`}
+                    >
+                      {d.name}
+                    </span>
+                    <span className="text-[11.5px] font-bold text-sutra-ink-3 flex-none">
+                      {d.numPages}p
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => removeDoc(d.id)}
+                    aria-label={`Remove ${d.name}`}
+                    title="Remove document"
+                    className="w-[22px] h-[22px] flex-none border-0 bg-transparent text-sutra-ink-3 rounded-md grid place-items-center hover:bg-white hover:text-red-600 transition-colors"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      className="w-[13px] h-[13px]"
+                    >
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+
+              {opening > 0 && (
+                <span className="flex-none flex items-center gap-2 h-[36px] px-3 rounded-[10px] border-[1.5px] border-dashed border-sutra-line text-[13px] font-semibold text-sutra-ink-3">
+                  Opening {opening}…
+                </span>
+              )}
+            </div>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-none flex items-center gap-1.5 h-[36px] px-3 rounded-[10px] border-[1.5px] border-sutra-line bg-white text-[13.5px] font-bold text-navy hover:border-navy hover:bg-tint transition-colors"
+            >
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.7"
-                className="w-5 h-5 text-sutra-ink-3 flex-none"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                className="w-[15px] h-[15px]"
               >
-                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-                <path d="M14 3v5h5" />
+                <path d="M12 5v14M5 12h14" />
               </svg>
-              <span className="text-[15px] font-semibold text-sutra-ink truncate">
-                {pdfName}
-              </span>
-            </div>
+              Add
+            </button>
 
-            <div className="flex items-center gap-1.5 flex-none">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage <= 1}
-                className="w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors disabled:opacity-35 disabled:pointer-events-none"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  className="w-[18px] h-[18px]"
-                >
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              </button>
-              <span className="text-[14px] font-semibold text-sutra-ink-2 min-w-[64px] text-center">
-                {currentPage} / {totalPages || "—"}
-              </span>
-              <button
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
-                disabled={currentPage >= totalPages || !pdfLoaded}
-                className="w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors disabled:opacity-35 disabled:pointer-events-none"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  className="w-[18px] h-[18px]"
-                >
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              </button>
-            </div>
+            {activeDoc && (
+              <>
+                <span className="flex-none w-px h-6 bg-sutra-line" />
+                <div className="flex items-center gap-1.5 flex-none">
+                  <button
+                    onClick={() => setActivePage((p) => p - 1)}
+                    disabled={activeDoc.page <= 1}
+                    aria-label="Previous page"
+                    className="w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors disabled:opacity-35 disabled:pointer-events-none"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      className="w-[18px] h-[18px]"
+                    >
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <span className="text-[14px] font-semibold text-sutra-ink-2 min-w-[64px] text-center">
+                    {activeDoc.page} / {activeDoc.numPages}
+                  </span>
+                  <button
+                    onClick={() => setActivePage((p) => p + 1)}
+                    disabled={activeDoc.page >= activeDoc.numPages}
+                    aria-label="Next page"
+                    className="w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors disabled:opacity-35 disabled:pointer-events-none"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      className="w-[18px] h-[18px]"
+                    >
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </button>
+                </div>
 
-            <div className="flex items-center gap-1 flex-none max-[640px]:hidden">
-              <button
-                onClick={() => setZoom((z) => Math.max(50, z - 25))}
-                className="w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="w-[18px] h-[18px]"
+                <div className="flex items-center gap-1 flex-none max-[640px]:hidden">
+                  <button
+                    onClick={() => setZoom((z) => Math.max(50, z - 25))}
+                    aria-label="Zoom out"
+                    className="w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="w-[18px] h-[18px]"
+                    >
+                      <path d="M5 12h14" />
+                    </svg>
+                  </button>
+                  <span className="text-[13px] font-semibold text-sutra-ink-3 min-w-[42px] text-center">
+                    {zoom}%
+                  </span>
+                  <button
+                    onClick={() => setZoom((z) => Math.min(400, z + 25))}
+                    aria-label="Zoom in"
+                    className="w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="w-[18px] h-[18px]"
+                    >
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={fitWidth}
+                    title="Fit to width"
+                    className="h-[34px] px-2.5 border border-sutra-line rounded-lg bg-white text-[12.5px] font-bold text-sutra-ink-2 hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors"
+                  >
+                    Fit
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setFullscreen((v) => !v)}
+                  title={
+                    fullscreen ? "Exit full screen (Esc)" : "Full screen (F)"
+                  }
+                  aria-label="Toggle full screen"
+                  className="flex-none w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors"
                 >
-                  <path d="M5 12h14" />
-                </svg>
-              </button>
-              <span className="text-[13px] font-semibold text-sutra-ink-3 min-w-[42px] text-center">
-                {zoom}%
-              </span>
-              <button
-                onClick={() => setZoom((z) => Math.min(400, z + 25))}
-                className="w-[34px] h-[34px] border border-sutra-line rounded-lg bg-white text-sutra-ink-2 grid place-items-center hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="w-[18px] h-[18px]"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </button>
-            </div>
+                  {fullscreen ? (
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-[17px] h-[17px]"
+                    >
+                      <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" />
+                    </svg>
+                  ) : (
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-[17px] h-[17px]"
+                    >
+                      <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" />
+                    </svg>
+                  )}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Canvas / Upload zone — m-auto centres without making overflow
-              unreachable, which `items-center` does once zoomed in */}
-          <div className="flex-1 overflow-auto relative flex p-4 max-lg:p-2">
-            {!pdfLoaded ? (
+              unreachable, which `items-center` does once zoomed in.
+              Dragging the page pans it; dropping files appends them. */}
+          <div
+            ref={viewportRef}
+            onPointerDown={docs.length ? startPan : undefined}
+            onPointerMove={movePan}
+            onPointerUp={endPan}
+            onPointerCancel={endPan}
+            className={`flex-1 overflow-auto relative flex p-4 max-lg:p-2 touch-pan-x touch-pan-y ${
+              docs.length
+                ? panning
+                  ? "cursor-grabbing select-none"
+                  : "cursor-grab"
+                : ""
+            }`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              addFiles(e.dataTransfer.files);
+            }}
+          >
+            {docs.length === 0 ? (
               <div
                 className="m-auto flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-sutra-line rounded-2xl bg-white cursor-pointer transition-colors hover:border-navy hover:bg-tint"
                 onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const f = e.dataTransfer.files[0];
-                  if (f) handleFile(f);
-                }}
               >
                 <div className="w-16 h-16 rounded-2xl bg-tint text-navy grid place-items-center mb-4 border border-tint-2">
                   <svg
@@ -445,10 +762,10 @@ export default function WorkspacePage() {
                   Upload case documents
                 </h3>
                 <p className="text-[16px] text-sutra-ink-2 mt-1.5">
-                  Drag &amp; drop a PDF here, or click to browse
+                  Drag &amp; drop PDFs here, or click to browse
                 </p>
                 <span className="text-[13.5px] text-sutra-ink-3 mt-1">
-                  Supports PDF files up to 50 MB
+                  Several files at once is fine — add or remove any time
                 </span>
                 <button className="mt-5 inline-flex items-center justify-center gap-2.5 bg-navy text-white border-0 rounded-xl text-[17px] font-semibold px-6 py-3.5 min-h-[52px] transition-colors hover:bg-navy-dark">
                   <svg
@@ -465,16 +782,22 @@ export default function WorkspacePage() {
                 </button>
               </div>
             ) : (
-              <canvas ref={canvasRef} className="m-auto block h-auto max-w-none" />
+              <canvas
+                ref={canvasRef}
+                draggable={false}
+                className="m-auto block h-auto max-w-none select-none"
+              />
             )}
             <input
               ref={fileInputRef}
               type="file"
               accept=".pdf"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleFile(f);
+                if (e.target.files?.length) addFiles(e.target.files);
+                /* clear so picking the same file again still fires onChange */
+                e.target.value = "";
               }}
             />
           </div>
@@ -629,6 +952,7 @@ export default function WorkspacePage() {
           {/* Messages — quick-analysis results stream in here, unbounded */}
           <div
             ref={messagesBoxRef}
+            onScroll={onMessagesScroll}
             className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pt-5 pb-2.5 flex flex-col gap-4"
           >
             {messages.map((m) =>
