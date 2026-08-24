@@ -5,16 +5,16 @@ import Input from "@/components/ui/Input";
 import PasswordInput from "@/components/ui/PasswordInput";
 import Radio from "@/components/ui/Radio";
 import Button from "@/components/ui/Button";
-import { useLoginForm, type LoginRole } from "@/hooks/useLoginForm";
+import { useRegisterForm, type RegisterRole } from "@/hooks/useRegisterForm";
 
-const ROLES: { value: LoginRole; label: string }[] = [
+const ROLES: { value: RegisterRole; label: string }[] = [
   { value: "legal_practitioner", label: "Legal Practitioner" },
   { value: "judiciary", label: "Honourable Judiciary" },
 ];
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const { role, setRole, email, setEmail, password, setPassword, error, loading, submit } =
-    useLoginForm();
+    useRegisterForm();
 
   return (
     <div className="h-dvh overflow-hidden flex flex-col bg-sutra-bg">
@@ -37,7 +37,7 @@ export default function LoginPage() {
                   value={r.value}
                   label={r.label}
                   checked={role === r.value}
-                  onChange={(v) => setRole(v as LoginRole)}
+                  onChange={(v) => setRole(v as RegisterRole)}
                 />
               ))}
             </div>
@@ -63,47 +63,26 @@ export default function LoginPage() {
           <PasswordInput
             label="Password"
             name="password"
-            autoComplete="current-password"
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
 
-          <div className="mt-2 text-right">
-            <Link
-              href="/forgot-password"
-              className="text-[12.5px] font-medium text-sutra-ink-2 no-underline hover:text-navy"
-            >
-              forgot password?
-            </Link>
-          </div>
-
-          {error && (
-            <div className="mt-3">
-              <p className="text-[13px] text-red-700">{error}</p>
-              {error.toLowerCase().includes("pending verification") && email && (
-                <Link
-                  href={`/verify-email?email=${encodeURIComponent(email)}`}
-                  className="text-[13px] font-semibold text-navy hover:underline mt-1 inline-block"
-                >
-                  Verify your email →
-                </Link>
-              )}
-            </div>
-          )}
+          {error && <p className="mt-3 text-[13px] text-red-700">{error}</p>}
 
           <div className="mt-5 flex justify-center">
             <Button type="submit" loading={loading} className="w-full sm:w-auto">
-              {loading ? "Signing in..." : "Login"}
+              {loading ? "Creating account..." : "Register"}
             </Button>
           </div>
 
           <div className="mt-4 text-center">
             <Link
-              href="/register"
+              href="/login"
               className="text-[13px] font-medium text-sutra-ink-2 no-underline hover:text-navy"
             >
-              Create a New Account
+              Already have an account? Login
             </Link>
           </div>
         </form>

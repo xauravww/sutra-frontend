@@ -21,9 +21,11 @@ const AuthContext = createContext<AuthCtx | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
-  // Hydrate from localStorage on mount
+  // Hydrate from localStorage on mount (client only)
   useEffect(() => {
+    setMounted(true);
     try {
       const raw = localStorage.getItem("user");
       if (raw) setUser(JSON.parse(raw));
@@ -50,6 +52,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("user");
     setUser(null);
+    // Redirect to login after signout
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
   }, []);
 
   return (
