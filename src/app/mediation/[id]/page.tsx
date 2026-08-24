@@ -97,7 +97,39 @@ export default function MediationSessionPage() {
     }
   }, [session]);
 
-  const doAnalyze = async () => { setAnalyzing(true); try { await mediation.analyze(sessionId); const r = await mediation.get(sessionId); setSession(r.data); } catch {} setAnalyzing(false); };
+  const [analysisStarted, setAnalysisStarted] = useState(false);
+
+  const doAnalyze = async () => {
+    setAnalyzing(true);
+    setAnalysisStarted(true);
+    try {
+      // Fire-and-forget: start analysis but don't wait
+      mediation.analyze(sessionId).catch(() => {});
+      // Immediately show toast
+      setToast({ message: "Analysis started — this may take a few minutes. You can leave this tab or page, we'll notify you when it's ready.", type: "success" });
+      // Start polling every 15s to check if analysis completed
+      const poll = setInterval(async () => {
+        try {
+          const r = await mediation.get(sessionId);
+          const a = (r.data as any).analysis;
+          if (a && a.analyzed_at) {
+            // Analysis completed — refresh and stop polling
+            setSession(r.data);
+            setAnalyzing(false);
+            setAnalysisStarted(false);
+            setToast({ message: "Analysis complete! Scores and similar cases are ready.", type: "success" });
+            clearInterval(poll);
+          }
+        } catch {}
+      }, 15000);
+      // Safety: stop polling after 10 minutes
+      setTimeout(() => { clearInterval(poll); setAnalyzing(false); setAnalysisStarted(false); }, 600000);
+    } catch {
+      setAnalyzing(false);
+      setAnalysisStarted(false);
+      setToast({ message: "Failed to start analysis. Please try again.", type: "error" });
+    }
+  };
   const doChat = async () => { const q = chatInput.trim(); if (!q || chatLoading) return; setChatInput(""); setChatMessages(p => [...p, { role: "user", content: q }]); setChatLoading(true); try { const r = await mediation.chat(sessionId, q); setChatMessages(p => [...p, { role: "assistant", content: (r as any)?.data?.answer ?? "No response." }]); } catch { setChatMessages(p => [...p, { role: "assistant", content: "Failed to get response." }]); } setChatLoading(false); };
 
   const downloadSummary = async (party: "a" | "b" | "both") => {
@@ -296,10 +328,17 @@ export default function MediationSessionPage() {
               <div className="space-y-6">
                 <div><h3 className="flex items-center gap-2 text-[12px] sm:text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-2.5"><I.FileText className="w-4 h-4 text-navy" />Dispute Summary</h3>
                 <p className="text-[15px] sm:text-[16px] text-sutra-ink leading-relaxed pl-6">{session.dispute_summary || "No dispute summary provided."}</p></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <PosCard label="Party A Position" val={a?.party_a_position} c="navy" />
-                  <PosCard label="Party B Position" val={a?.party_b_position} c="amber" />
-                </div>
+                {a ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <PosCard label="Party A Position" val={a.party_a_favorable_points?.[0]?.point || (a.dominating_party === "PARTY_A" ? "Holds the stronger position" : a.dominating_party === "BALANCED" ? "Balanced position" : "Weaker position")} c="navy" />
+                    <PosCard label="Party B Position" val={a.party_b_favorable_points?.[0]?.point || (a.dominating_party === "PARTY_B" ? "Holds the stronger position" : a.dominating_party === "BALANCED" ? "Balanced position" : "Weaker position")} c="amber" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <PosCard label="Party A Position" val="Awaiting analysis." c="navy" />
+                    <PosCard label="Party B Position" val="Awaiting analysis." c="amber" />
+                  </div>
+                )}
               </div>
             )}
 
@@ -321,8 +360,8 @@ export default function MediationSessionPage() {
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="w-3 h-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                       Both
                     </button>
-                    <button onClick={doAnalyze} disabled={analyzing} className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-3.5 sm:px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark disabled:opacity-50 disabled:cursor-not-allowed flex-none shadow-sm">
-                      {analyzing ? (<><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" className="opacity-25" /><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="24" strokeLinecap="round" /></svg>Analyzing…</>) : (<><I.Sparkles className="w-4 h-4" />Run Analysis</>)}
+                    <button onClick={doAnalyze} disabled={analyzing} className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-3.5 sm:px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark disabled:opacity-70 disabled:cursor-not-allowed flex-none shadow-sm">
+                      {analyzing ? (<><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" className="opacity-25" /><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="24" strokeLinecap="round" /></svg>Processing…</>) : (<><I.Sparkles className="w-4 h-4" />Run Analysis</>)}
                     </button>
                   </div>
                 </div>
@@ -385,10 +424,53 @@ export default function MediationSessionPage() {
                               </div>
                               <span className="text-[11px] sm:text-[12px] font-bold text-sutra-ink-3 flex-none">→ {q.target_party === "PARTY_A" ? "Party A" : "Party B"}</span>
                             </div>
+                          )                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Similar Cases from Corpus */}
+                    {a.similar_cases && Array.isArray(a.similar_cases) && a.similar_cases.length > 0 && (
+                      <div>
+                        <SectionHeading icon={<I.Scale className="w-4 h-4 text-navy" />} title="Similar Cases from Corpus" />
+                        <div className="space-y-3 pl-6">
+                          {a.similar_cases.map((sc: any, i: number) => (
+                            <div key={i} className="bg-white border border-sutra-line-2 rounded-xl p-4 space-y-2 hover:border-navy/30 transition-colors">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[14px] sm:text-[15px] font-semibold text-sutra-ink truncate">{sc.title || "Untitled Case"}</p>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    {sc.citation && <span className="text-[11px] sm:text-[12px] font-mono text-navy bg-tint px-2 py-0.5 rounded-md border border-tint-2">{sc.citation}</span>}
+                                    {sc.court && <span className="text-[11px] sm:text-[12px] text-sutra-ink-3">{sc.court}</span>}
+                                    {sc.year && <span className="text-[11px] sm:text-[12px] text-sutra-ink-3">({sc.year})</span>}
+                                    {sc.case_type && <span className="text-[11px] sm:text-[12px] text-sutra-ink-3 bg-slate-50 px-2 py-0.5 rounded-md">{sc.case_type.replace(/_/g, " ")}</span>}
+                                  </div>
+                                </div>
+                                <span className="text-[11px] sm:text-[12px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex-none">
+                                  {Math.round((sc.similarity || 0) * 100)}% match
+                                </span>
+                              </div>
+                              {sc.outcome && (
+                                <p className="text-[13px] text-sutra-ink-2 pl-0"><span className="font-semibold text-sutra-ink">Outcome:</span> {sc.outcome}</p>
+                              )}
+                              {sc.excerpt && (
+                                <p className="text-[12px] sm:text-[13px] text-sutra-ink-3 leading-relaxed line-clamp-3">{sc.excerpt}</p>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>
                     )}
+                  </div>
+                ) : analyzing ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-4">
+                    <div className="w-12 h-12 rounded-full bg-navy/10 grid place-items-center">
+                      <svg className="w-6 h-6 animate-spin text-navy" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" className="opacity-25" /><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="24" strokeLinecap="round" /></svg>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[16px] font-semibold text-sutra-ink">Analysis in progress</p>
+                      <p className="text-[14px] text-sutra-ink-3 mt-1">This usually takes 2-3 minutes. You can navigate to other tabs — we'll notify you when it's ready.</p>
+                    </div>
                   </div>
                 ) : <Empty icon={<I.BarChart className="w-7 h-7" />} t="No analysis yet" d='Click "Run Analysis" to generate scores.' />}
               </div>
@@ -637,7 +719,7 @@ function MetaChip({ icon, label }: { icon: React.ReactNode; label: string }) {
   return <span className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-medium text-sutra-ink-2 bg-[#FAFBFD] border border-sutra-line-2 rounded-full py-1.5 px-3">{icon}{label}</span>;
 }
 function StatusBadge({ status }: { status: string }) {
-  const ok = status === "analyzed" || status === "completed" || status === "in_analysis";
+  const ok = status === "analyzed" || status === "completed" || status === "in_analysis" || status === "active";
   return <span className={`inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold px-2.5 py-1 rounded-full ${ok ? "bg-green-bg text-green-ink" : "bg-amber-bg text-amber-ink"}`}><span className={`w-1.5 h-1.5 rounded-full flex-none ${ok ? "bg-green-dot" : "bg-amber-dot"}`} />{ok ? "Complete" : "Pending"}</span>;
 }
 function Empty({ icon, t, d }: { icon: React.ReactNode; t: string; d: string }) {

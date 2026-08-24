@@ -506,6 +506,24 @@ export function buildSummaryPdf(session: MediationSession, mode: SummaryMode): j
     clauseNo += 1;
   }
 
+  // ---------- SIMILAR CASES FROM CORPUS (combined only) ----------
+  if (mode === "combined") {
+    const similarCases = (analysis as any).similar_cases || [];
+    if (similarCases.length > 0) {
+      l.heading("Similar Cases from Corpus", { num: `${clauseNo}.` });
+      similarCases.forEach((sc: any, i: number) => {
+        l.clause(`${clauseNo}.${i + 1}`, `${sc.title || "Untitled Case"}${sc.citation ? ` (${sc.citation})` : ""}`);
+        if (sc.court || sc.year) {
+          l.para(`Court: ${sc.court || "Unknown"}${sc.year ? `, ${sc.year}` : ""}${sc.case_type ? ` [${sc.case_type.replace(/_/g, " ")}]` : ""}`, { size: 10, indent: 22 });
+        }
+        if (sc.outcome) l.para(`Outcome: ${sc.outcome}`, { size: 10, indent: 22 });
+        if (sc.similarity) l.para(`Relevance: ${Math.round(sc.similarity * 100)}%`, { size: 10, indent: 22 });
+        if (sc.excerpt) l.para(sc.excerpt.slice(0, 400), { size: 9.5, indent: 22 });
+      });
+      clauseNo += 1;
+    }
+  }
+
   // ---------- SETTLEMENT NOTES (combined only) ----------
   if (mode === "combined") {
     l.heading("Mediator's Settlement Notes", { num: `${clauseNo}.` });
