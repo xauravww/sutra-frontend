@@ -149,6 +149,116 @@ export default function MediationDirectoryPage() {
           <div className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 mb-6">
             <h3 className="text-[16px] sm:text-[17px] font-bold text-sutra-ink mb-4">Create New Session</h3>
 
+            {/* Sample session presets & PDF bundles */}
+            <div className="bg-navy text-white rounded-2xl p-4 sm:p-5 mb-4">
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <h4 className="text-[12.5px] font-bold uppercase tracking-widest text-white/80 flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  Realistic Test Cases &amp; Sample PDF Bundles
+                </h4>
+                <span className="text-[10px] bg-white/15 text-white/80 px-2 py-0.5 rounded font-mono font-bold">
+                  Party A + B PDFs
+                </span>
+              </div>
+              <p className="text-[12px] text-white/70 leading-relaxed mb-3">
+                Auto-fill a realistic dispute and download the corresponding 4-test-PDF bundle (2 for Party A &amp; 2
+                for Party B) to test the AI comparative-analysis engine.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Mediation Case 1 preset */}
+                <div className="bg-white/10 rounded-xl border border-white/10 p-3 space-y-2 flex flex-col">
+                  <div>
+                    <h4 className="text-[13px] font-bold text-white">Case 1: Construction Contract</h4>
+                    <p className="text-[11.5px] text-white/70 mt-0.5">
+                      Shivalik Constructions (Party A) vs. Greenfield Developers (Party B)
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewTitle("Construction Contract — Unpaid Certified Bills & Defective Works");
+                        setPartyA("M/s Shivalik Constructions Pvt. Ltd.");
+                        setPartyB("M/s Greenfield Developers Pvt. Ltd.");
+                        setShowNew(true);
+                      }}
+                      className="px-2.5 py-1 bg-white text-navy rounded-lg text-[10.5px] font-bold transition-colors hover:bg-white/90"
+                    >
+                      Auto-Fill Case 1
+                    </button>
+                    <a
+                      href="/sample-documents/Mediation_Case1_PartyA_LegalNotice.pdf"
+                      download
+                      className="px-2 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-[10.5px] font-bold transition-colors"
+                      title="Download Party A notice"
+                    >
+                      📥 Party A PDF
+                    </a>
+                    <a
+                      href="/sample-documents/Mediation_Case1_PartyB_ReplyNotice.pdf"
+                      download
+                      className="px-2 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-[10.5px] font-bold transition-colors"
+                      title="Download Party B reply"
+                    >
+                      📥 Party B PDF
+                    </a>
+                  </div>
+                </div>
+
+                {/* Mediation Case 2 preset */}
+                <div className="bg-white/10 rounded-xl border border-white/10 p-3 space-y-2 flex flex-col">
+                  <div>
+                    <h4 className="text-[13px] font-bold text-white">Case 2: Data Services Dispute</h4>
+                    <p className="text-[11.5px] text-white/70 mt-0.5">
+                      Orion Analytics (Party A) vs. Vector Systems (Party B)
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewTitle("Data Services Agreement — Unpaid Retainer & SLA Breach Counterclaim");
+                        setPartyA("M/s Orion Analytics Pvt. Ltd.");
+                        setPartyB("M/s Vector Systems Ltd.");
+                        setShowNew(true);
+                      }}
+                      className="px-2.5 py-1 bg-white text-navy rounded-lg text-[10.5px] font-bold transition-colors hover:bg-white/90"
+                    >
+                      Auto-Fill Case 2
+                    </button>
+                    <a
+                      href="/sample-documents/Mediation_Case2_PartyA_LegalNotice.pdf"
+                      download
+                      className="px-2 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-[10.5px] font-bold transition-colors"
+                      title="Download Party A notice"
+                    >
+                      📥 Party A PDF
+                    </a>
+                    <a
+                      href="/sample-documents/Mediation_Case2_PartyB_ReplyNotice.pdf"
+                      download
+                      className="px-2 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-[10.5px] font-bold transition-colors"
+                      title="Download Party B reply"
+                    >
+                      📥 Party B PDF
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-2.5 border-t border-white/10">
+                <p className="text-[10.5px] text-white/50 leading-relaxed">
+                  Full bundle per case (download all, then upload via the session Documents tab):
+                  Party A Notice · Party A Evidence · Party B Reply · Party B Evidence — at
+                  <span className="font-mono text-white/70"> /sample-documents/ </span>.
+                </p>
+              </div>
+            </div>
+
             {/* Smart Fill */}
             <div className="bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-4 mb-4">
               <div className="flex items-center justify-between gap-3 mb-2">

@@ -5,8 +5,10 @@ import TopBar from "@/components/TopBar";
 import Link from "next/link";
 import Button, { Spinner } from "@/components/ui/Button";
 import { judicialCases, type JudicialCase } from "@/lib/api";
+import { useNotify } from "@/components/ui/Notify";
 
 export default function CasesPage() {
+  const { toast, confirm } = useNotify();
   const [cases, setCases] = useState<JudicialCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -48,20 +50,30 @@ export default function CasesPage() {
       setNewTitle("");
       setNewCaseNumber("");
       setShowNew(false);
+      toast("Case created", "success");
       fetchCases();
-    } catch {
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to create case", "error");
     } finally {
       setCreating(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this case? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete case",
+      message: "Delete this case? This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await judicialCases.delete(id);
       setCases((prev) => prev.filter((c) => c.id !== id));
-    } catch {
+      toast("Case deleted", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete case", "error");
     } finally {
       setDeletingId(null);
     }
@@ -91,6 +103,115 @@ export default function CasesPage() {
             <span className="hidden sm:inline">New Case</span>
             <span className="sm:hidden">New</span>
           </button>
+        </div>
+
+        {/* Sample case presets & PDF bundles */}
+        <div className="bg-navy text-white rounded-2xl p-4 sm:p-6 mb-6">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <h3 className="text-[13px] font-bold uppercase tracking-widest text-white/80 flex items-center gap-2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              Realistic Test Cases &amp; Sample PDF Bundles
+            </h3>
+            <span className="text-[10px] bg-white/15 text-white/80 px-2 py-0.5 rounded font-mono font-bold">
+              18 Detailed PDFs
+            </span>
+          </div>
+          <p className="text-[12.5px] text-white/70 leading-relaxed mb-3">
+            Auto-fill a realistic criminal case and download the corresponding full case-file PDFs (FIR, charge
+            sheet, witness statements, evidence &amp; orders) to upload into the case workspace and test the AI
+            case-intelligence engine end to end.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Judge Case 1 preset */}
+            <div className="bg-white/10 rounded-xl border border-white/10 p-3 space-y-2 flex flex-col">
+              <div>
+                <h4 className="text-[13px] font-bold text-white">Case 1: Cheating &amp; Forgery</h4>
+                <p className="text-[11.5px] text-white/70 mt-0.5">
+                  State of Maharashtra vs. Rajesh Kumar — IPC 420, 467, 468, 471 r/w 120B
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewTitle("State of Maharashtra vs. Rajesh Kumar");
+                    setNewCaseNumber("CRL/118/2026");
+                    setShowNew(true);
+                  }}
+                  className="px-2.5 py-1 bg-white text-navy rounded-lg text-[10.5px] font-bold transition-colors hover:bg-white/90"
+                >
+                  Auto-Fill Case 1
+                </button>
+                <a
+                  href="/sample-documents/Judge_Case1_FIR_FirstInformationReport.pdf"
+                  download
+                  className="px-2 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-[10.5px] font-bold transition-colors"
+                  title="Download FIR"
+                >
+                  📥 FIR
+                </a>
+                <a
+                  href="/sample-documents/Judge_Case1_ChargeSheet_FinalReport.pdf"
+                  download
+                  className="px-2 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-[10.5px] font-bold transition-colors"
+                  title="Download Charge Sheet"
+                >
+                  📥 Charge Sheet
+                </a>
+              </div>
+            </div>
+
+            {/* Judge Case 2 preset */}
+            <div className="bg-white/10 rounded-xl border border-white/10 p-3 space-y-2 flex flex-col">
+              <div>
+                <h4 className="text-[13px] font-bold text-white">Case 2: Bank Fraud (CBI)</h4>
+                <p className="text-[11.5px] text-white/70 mt-0.5">
+                  State (CBI) vs. Suresh Yadav &amp; Ors. — IPC 408, 409, 420, 471 r/w 120B
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewTitle("State (CBI) vs. Suresh Yadav & Ors.");
+                    setNewCaseNumber("RC-3(A)/2026/BS&FC");
+                    setShowNew(true);
+                  }}
+                  className="px-2.5 py-1 bg-white text-navy rounded-lg text-[10.5px] font-bold transition-colors hover:bg-white/90"
+                >
+                  Auto-Fill Case 2
+                </button>
+                <a
+                  href="/sample-documents/Judge_Case2_FIR_FirstInformationReport.pdf"
+                  download
+                  className="px-2 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-[10.5px] font-bold transition-colors"
+                  title="Download FIR"
+                >
+                  📥 FIR
+                </a>
+                <a
+                  href="/sample-documents/Judge_Case2_ChargeSheet_FinalReport.pdf"
+                  download
+                  className="px-2 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-[10.5px] font-bold transition-colors"
+                  title="Download Charge Sheet"
+                >
+                  📥 Charge Sheet
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 pt-2.5 border-t border-white/10">
+            <p className="text-[10.5px] text-white/50 leading-relaxed">
+              Full bundle per case (download all, then upload into the case workspace):
+              FIR · Charge Sheet · Witness Statements · Evidence &amp; Exhibits · Bail/Framing Order — available at
+              <span className="font-mono text-white/70"> /sample-documents/ </span>.
+            </p>
+          </div>
         </div>
 
         {/* New case form */}

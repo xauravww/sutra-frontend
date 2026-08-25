@@ -396,17 +396,37 @@ export interface JudicialCase {
   updated_at: string;
 }
 
+export interface JudicialDocument {
+  id: string;
+  original_filename: string;
+  file_url: string;
+  wasabi_key?: string;
+  file_size_bytes: number;
+  document_type: string;
+  page_count?: number;
+  uploaded_at: string;
+}
+
 export interface JudicialCaseDetail extends JudicialCase {
   pdf_url?: string;
   pdf_size_bytes?: number;
   parties?: unknown[];
   accused?: unknown[];
   witnesses?: unknown[];
-  documents?: unknown[];
+  documents?: JudicialDocument[];
   evidence?: unknown[];
   chronology?: unknown[];
   case_brief?: unknown;
   legal_provisions?: unknown[];
+}
+
+export interface JudicialChatMessage {
+  id: number;
+  case_id: number;
+  role: "user" | "assistant";
+  content: string;
+  citations?: unknown;
+  created_at: string;
 }
 
 export const judicialCases = {
@@ -445,6 +465,53 @@ export const judicialCases = {
       `/api/v1/judicial-cases/${id}/structure`,
       { method: "PUT", json: structure }
     ),
+
+  analyze: (id: number) =>
+    request<{ success: boolean; data: { status: string } }>(
+      `/api/v1/judicial-cases/${id}/analyze`,
+      { method: "POST" }
+    ),
+
+  uploadDocuments: (id: number, files: { file: File; docType: string }[]) => {
+    const formData = new FormData();
+    files.forEach(f => formData.append("files", f.file));
+    files.forEach(f => formData.append("document_types", f.docType));
+    const headers: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("accessToken");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
+    return fetch(`${BASE}/api/v1/judicial-cases/${id}/documents`, {
+      method: "POST",
+      headers,
+      body: formData,
+      credentials: "include",
+    }).then(async r => {
+      const body = await r.json();
+      if (!r.ok) throw new ApiError(r.status, body?.message ?? "Upload failed", body);
+      return body as { success: boolean; data: JudicialCaseDetail };
+    });
+  },
+
+  deleteDocument: (id: number, docId: string) =>
+    request<{ success: boolean; data: JudicialCaseDetail }>(
+      `/api/v1/judicial-cases/${id}/documents/${docId}`,
+      { method: "DELETE" }
+    ),
+
+  chatHistory: (id: number) =>
+    request<{ success: boolean; data: JudicialChatMessage[] }>(
+      `/api/v1/judicial-cases/${id}/chat`
+    ),
+
+  chat: (id: number, question: string) =>
+    request<{
+      success: boolean;
+      data: { answer: string; citations?: unknown[]; message_id: number };
+    }>(`/api/v1/judicial-cases/${id}/chat`, {
+      method: "POST",
+      json: { question },
+    }),
 };
 
 /* ------------------------------------------------------------------ */
