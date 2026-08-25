@@ -49,6 +49,15 @@
   }
 }
 
+/* Hide scrollbar while keeping element scrollable (mobile tab strips) */
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Chat panel slide-in */
 @keyframes slideUp {
   from {

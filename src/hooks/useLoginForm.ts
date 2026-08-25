@@ -23,7 +23,7 @@ export function useLoginForm(redirectTo = "/workspace") {
       setError("");
       setLoading(true);
       try {
-        await login(email, password);
+        await login(email, password, role);
         // Redirect based on role from stored user
         const stored = typeof window !== "undefined" ? localStorage.getItem("user") : null;
         const user = stored ? JSON.parse(stored) : null;
@@ -37,7 +37,7 @@ export function useLoginForm(redirectTo = "/workspace") {
         setLoading(false);
       }
     },
-    [login, email, password, router, redirectTo]
+    [login, email, password, role, router, redirectTo]
   );
 
   return { role, setRole, email, setEmail, password, setPassword, error, loading, submit };

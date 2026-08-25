@@ -80,11 +80,11 @@ export default function CaseDetailPage() {
     return (
       <div className="min-h-dvh">
         <TopBar />
-        <main className="max-w-[940px] mx-auto px-6 py-8">
+        <main className="max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full">
           <div className="space-y-4">
-            <div className="h-8 w-64 bg-sutra-line-2 rounded animate-pulse" />
-            <div className="h-4 w-48 bg-sutra-line-2 rounded animate-pulse" />
-            <div className="h-[400px] bg-white border border-sutra-line rounded-2xl animate-pulse" />
+            <div className="h-7 sm:h-8 w-full max-w-[260px] bg-sutra-line-2 rounded animate-pulse" />
+            <div className="h-4 w-full max-w-[180px] bg-sutra-line-2 rounded animate-pulse" />
+            <div className="h-[300px] sm:h-[400px] bg-white border border-sutra-line rounded-2xl animate-pulse" />
           </div>
         </main>
       </div>
@@ -95,7 +95,7 @@ export default function CaseDetailPage() {
     return (
       <div className="min-h-dvh">
         <TopBar />
-        <main className="max-w-[940px] mx-auto px-6 py-8 text-center">
+        <main className="max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full text-center">
           <p className="text-[17px] text-sutra-ink-3 mb-4">Case not found</p>
           <Link href="/cases" className="text-[15px] font-semibold text-navy hover:underline">
             ← Back to cases
@@ -111,17 +111,17 @@ export default function CaseDetailPage() {
     <div className="min-h-dvh flex flex-col">
       <TopBar />
 
-      <main className="flex-1 max-w-[940px] mx-auto px-6 py-8 w-full">
+      <main className="flex-1 max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
+        <div className="flex items-start justify-between gap-3 mb-5 sm:mb-6">
+          <div className="min-w-0">
             <Link
               href="/cases"
               className="text-[13px] font-semibold text-sutra-ink-3 hover:text-navy no-underline mb-2 inline-block"
             >
               ← Cases
             </Link>
-            <h1 className="text-[28px] font-bold tracking-tight leading-snug">
+            <h1 className="text-[21px] sm:text-[28px] font-bold tracking-tight leading-snug break-words [overflow-wrap:anywhere]">
               {caseData.title}
             </h1>
             {caseData.case_number && (
@@ -150,7 +150,7 @@ export default function CaseDetailPage() {
         {/* PDF Upload Area */}
         {!caseData.pdf_filename && (
           <div
-            className="border-2 border-dashed border-sutra-line rounded-2xl bg-white p-12 text-center cursor-pointer transition-colors hover:border-navy hover:bg-tint mb-6"
+            className="border-2 border-dashed border-sutra-line rounded-2xl bg-white px-4 py-8 sm:p-12 text-center cursor-pointer transition-colors hover:border-navy hover:bg-tint mb-5 sm:mb-6"
             onClick={() => fileInputRef.current?.click()}
           >
             {uploading ? (
@@ -160,15 +160,15 @@ export default function CaseDetailPage() {
               </div>
             ) : (
               <>
-                <div className="w-16 h-16 rounded-2xl bg-tint text-navy grid place-items-center mx-auto mb-4 border border-tint-2">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-tint text-navy grid place-items-center mx-auto mb-3 sm:mb-4 border border-tint-2">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 sm:w-7 sm:h-7">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                     <polyline points="17 8 12 3 7 8" />
                     <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold text-sutra-ink mb-1">Upload Case File</h3>
-                <p className="text-[15px] text-sutra-ink-2">
+                <h3 className="text-lg sm:text-xl font-bold text-sutra-ink mb-1">Upload Case File</h3>
+                <p className="text-[14px] sm:text-[15px] text-sutra-ink-2">
                   Drop your complete case PDF here, or click to browse
                 </p>
                 <p className="text-[13px] text-sutra-ink-3 mt-1">
@@ -192,12 +192,12 @@ export default function CaseDetailPage() {
 
         {/* Uploaded PDF info */}
         {caseData.pdf_filename && (
-          <div className="flex items-center gap-3 bg-white border border-sutra-line rounded-xl px-5 py-3.5 mb-6">
+          <div className="flex items-center gap-2.5 sm:gap-3 bg-white border border-sutra-line rounded-xl px-3.5 sm:px-5 py-3 mb-5 sm:mb-6">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="w-5 h-5 text-navy flex-none">
               <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
               <path d="M14 3v5h5" />
             </svg>
-            <span className="text-[15px] font-semibold text-sutra-ink truncate">{caseData.pdf_filename}</span>
+            <span className="text-[14px] sm:text-[15px] font-semibold text-sutra-ink truncate min-w-0">{caseData.pdf_filename}</span>
             {caseData.page_count && (
               <span className="text-[13px] text-sutra-ink-3 flex-none">{caseData.page_count} pages</span>
             )}
@@ -214,12 +214,12 @@ export default function CaseDetailPage() {
         {/* Tabs */}
         {caseData.pdf_filename && (
           <>
-            <div className="flex gap-1 border-b border-sutra-line mb-6 overflow-x-auto">
+            <div className="flex gap-0.5 sm:gap-1 border-b border-sutra-line mb-5 sm:mb-6 overflow-x-auto scrollbar-hide">
               {TABS.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex-none px-4 py-3 text-[14px] font-semibold border-b-2 transition-colors bg-transparent border-0 border-b-2 cursor-pointer ${
+                  className={`flex-none px-3 sm:px-4 py-3 text-[13.5px] sm:text-[14px] font-semibold border-0 border-b-2 transition-colors bg-transparent cursor-pointer ${
                     activeTab === tab.key
                       ? "border-navy text-navy"
                       : "border-transparent text-sutra-ink-3 hover:text-sutra-ink"
@@ -231,7 +231,7 @@ export default function CaseDetailPage() {
             </div>
 
             {/* Tab content */}
-            <div className="bg-white border border-sutra-line rounded-2xl p-6 min-h-[300px]">
+            <div className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 min-h-[240px] sm:min-h-[300px] [overflow-wrap:anywhere]">
               {activeTab === "overview" && <OverviewTab data={caseData} />}
               {activeTab === "parties" && <PartiesTab data={caseData} />}
               {activeTab === "witnesses" && <WitnessesTab data={caseData} />}

@@ -22,6 +22,7 @@ export default function Input({ label, trailing, id, className = "", ...props }:
             trailing ? "pr-12" : ""
           } ${className}`}
           {...props}
+          autoComplete={props.autoComplete ?? "off"}
         />
         {trailing && (
           <span className="absolute right-1 top-1/2 -translate-y-1/2">{trailing}</span>

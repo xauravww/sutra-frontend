@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Logo from "@/components/Logo";
 import Input from "@/components/ui/Input";
 import PasswordInput from "@/components/ui/PasswordInput";
 import Radio from "@/components/ui/Radio";
@@ -19,7 +20,7 @@ export default function LoginPage() {
   return (
     <div className="h-dvh overflow-hidden flex flex-col bg-sutra-bg">
       <header className="flex-none border-b border-sutra-line bg-white px-5 py-3.5 sm:px-8">
-        <b className="text-[17px] font-bold tracking-[0.14em] text-sutra-ink">SUTRA</b>
+        <Logo className="h-7 sm:h-8 w-auto" />
       </header>
 
       <main className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">

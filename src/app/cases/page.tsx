@@ -107,7 +107,7 @@ export default function CasesPage() {
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. State vs. Accused Name"
-                  className="w-full h-11 rounded-lg border border-sutra-line bg-white px-3.5 text-[15px] text-sutra-ink outline-none focus:border-navy"
+                  className="w-full h-11 rounded-lg border border-sutra-line bg-white px-3.5 text-[16px] text-sutra-ink outline-none focus:border-navy"
                 />
               </div>
               <div>
@@ -119,7 +119,7 @@ export default function CasesPage() {
                   value={newCaseNumber}
                   onChange={(e) => setNewCaseNumber(e.target.value)}
                   placeholder="e.g. CRL/123/2026"
-                  className="w-full h-11 rounded-lg border border-sutra-line bg-white px-3.5 text-[15px] text-sutra-ink outline-none focus:border-navy"
+                  className="w-full h-11 rounded-lg border border-sutra-line bg-white px-3.5 text-[16px] text-sutra-ink outline-none focus:border-navy"
                 />
               </div>
             </div>
@@ -149,7 +149,7 @@ export default function CasesPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search cases..."
-              className="border-0 bg-transparent outline-none w-full font-[inherit] text-[15px] sm:text-[17px] text-sutra-ink placeholder:text-sutra-ink-3"
+              className="border-0 bg-transparent outline-none w-full font-[inherit] text-[16px] sm:text-[17px] text-sutra-ink placeholder:text-sutra-ink-3"
             />
           </label>
           <span className="text-[14px] sm:text-[16px] text-sutra-ink-3 whitespace-nowrap flex-none">
@@ -164,11 +164,11 @@ export default function CasesPage() {
               {[1, 2, 3].map((i) => (
                 <div key={i} className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="h-6 w-24 bg-sutra-line-2 rounded animate-pulse" />
-                    <div className="h-6 w-20 bg-sutra-line-2 rounded-full animate-pulse" />
+                    <div className="h-6 w-24 bg-sutra-line-2 rounded animate-pulse flex-none" />
+                    <div className="h-6 w-20 bg-sutra-line-2 rounded-full animate-pulse flex-none" />
                   </div>
-                  <div className="h-7 w-64 bg-sutra-line-2 rounded animate-pulse mb-3" />
-                  <div className="h-4 w-48 bg-sutra-line-2 rounded animate-pulse" />
+                  <div className="h-7 w-full max-w-[256px] bg-sutra-line-2 rounded animate-pulse mb-3" />
+                  <div className="h-4 w-full max-w-[192px] bg-sutra-line-2 rounded animate-pulse" />
                 </div>
               ))}
             </div>
@@ -205,7 +205,7 @@ export default function CasesPage() {
                   <StatusBadge status={c.status} />
                 </div>
 
-                <h2 className="text-[18px] sm:text-[22px] font-bold leading-snug tracking-tight mb-1.5 sm:mb-2">
+                <h2 className="text-[18px] sm:text-[22px] font-bold leading-snug tracking-tight mb-1.5 sm:mb-2 break-words [overflow-wrap:anywhere]">
                   {c.title}
                 </h2>
 

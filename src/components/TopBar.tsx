@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import Logo from "@/components/Logo";
 
 export default function TopBar() {
   const { user, logout } = useAuth();
@@ -12,16 +13,8 @@ export default function TopBar() {
   return (
     <header className="bg-white border-b border-sutra-line sticky top-0 z-20">
       <div className="max-w-[940px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
-        <Link href={isJudiciary ? "/cases" : isPractitioner ? "/mediation" : "/workspace"} className="flex items-center gap-2 sm:gap-3 no-underline flex-none">
-          <span className="w-[36px] h-[36px] sm:w-[42px] sm:h-[42px] flex-none rounded-[10px] sm:rounded-[11px] bg-navy text-white grid place-items-center">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 sm:w-[25px] sm:h-[25px]">
-              <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>
-              <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>
-              <path d="M7 21h10"/><path d="M12 3v18"/>
-              <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>
-            </svg>
-          </span>
-          <b className="text-[18px] sm:text-[22px] font-bold tracking-tight text-sutra-ink">Sutra</b>
+        <Link href={isJudiciary ? "/cases" : isPractitioner ? "/mediation" : "/workspace"} className="flex items-center no-underline flex-none">
+          <Logo />
         </Link>
 
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
