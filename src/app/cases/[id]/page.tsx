@@ -9,7 +9,7 @@ import { judicialCases, type JudicialCaseDetail, type JudicialDocument } from "@
 import { useNotify } from "@/components/ui/Notify";
 import Markdown from "react-markdown";
 
-type Tab = "overview" | "parties" | "witnesses" | "evidence" | "chronology" | "research" | "pages";
+type Tab = "overview" | "parties" | "witnesses" | "evidence" | "chronology" | "research" | "pages" | "police";
 
 /* Quick access cards — one per tab, mirroring the workspace's analysis strip
    so a judge can reach any section of the case in one tap. */
@@ -91,6 +91,19 @@ const QUICK_ACCESS: {
         <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
         <path d="M14 3v5h5" />
         <path d="M9 13h6M9 17h6" />
+      </>
+    ),
+  },
+  {
+    tab: "police",
+    label: "Police / IO",
+    sub: "Station & officer",
+    bg: "bg-tint text-navy",
+    icon: (
+      <>
+        <path d="M3 21h18" />
+        <path d="M5 21V7l7-4 7 4v14" />
+        <path d="M9 21v-4h6v4" />
       </>
     ),
   },
@@ -370,6 +383,7 @@ export default function CaseDetailPage() {
     chronology: listLength(caseData.chronology),
     research: listLength(caseData.legal_provisions),
     pages: documents.reduce((n, d) => n + (d.page_count || 0), 0),
+    police: caseData.police_station ? 1 : 0,
   };
 
   return (
@@ -613,6 +627,88 @@ export default function CaseDetailPage() {
           </div>
         )}
 
+        {/* Quick analysis buttons — one-tap jumps to each section */}
+        {hasDocs && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5 sm:mb-6">
+            {[
+              {
+                tab: "overview" as Tab,
+                label: "Case Summary",
+                sub: "Brief & issues",
+                bg: "bg-tint text-navy",
+                icon: <path d="M4 5h16M4 10h16M4 15h10M4 20h7" />,
+              },
+              {
+                tab: "pages" as Tab,
+                label: "Important Pages",
+                sub: "Key folios",
+                bg: "bg-amber-bg text-amber-ink",
+                icon: <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />,
+              },
+              {
+                tab: "witnesses" as Tab,
+                label: "Witnesses",
+                sub: "Names & roles",
+                bg: "bg-tint text-navy",
+                icon: (
+                  <>
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </>
+                ),
+              },
+              {
+                tab: "police" as Tab,
+                label: "Police Station / IO",
+                sub: "Station & officer",
+                bg: "bg-tint text-navy",
+                icon: (
+                  <>
+                    <path d="M3 21h18" />
+                    <path d="M5 21V7l7-4 7 4v14" />
+                    <path d="M9 21v-4h6v4" />
+                  </>
+                ),
+              },
+            ].map((a) => (
+              <button
+                key={a.tab}
+                onClick={() => goToTab(a.tab)}
+                aria-current={activeTab === a.tab ? "true" : undefined}
+                className={`flex items-center gap-3 p-3 rounded-xl border-[1.5px] transition-all cursor-pointer ${
+                  activeTab === a.tab
+                    ? "border-navy bg-tint"
+                    : "border-sutra-line bg-white hover:border-navy hover:bg-tint"
+                }`}
+              >
+                <span className={`w-9 h-9 rounded-[10px] grid place-items-center flex-none ${a.bg}`}>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-[19px] h-[19px]"
+                  >
+                    {a.icon}
+                  </svg>
+                </span>
+                <span className="min-w-0 text-left">
+                  <span className="block text-[13.5px] font-bold text-sutra-ink leading-tight">
+                    {a.label}
+                  </span>
+                  <span className="block text-[11.5px] text-sutra-ink-3 font-medium truncate">
+                    {a.sub}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Quick access + tabs */}
         {hasDocs && (
           <>
@@ -698,7 +794,10 @@ export default function CaseDetailPage() {
               {activeTab === "evidence" && <EvidenceTab data={caseData} />}
               {activeTab === "chronology" && <ChronologyTab data={caseData} />}
               {activeTab === "research" && <ResearchTab data={caseData} />}
-              {activeTab === "pages" && <PagesTab caseId={caseId} documents={documents} />}
+              {activeTab === "pages" && (
+                <PagesTab caseId={caseId} documents={documents} importantPages={caseData.important_pages} />
+              )}
+              {activeTab === "police" && <PoliceTab data={caseData} />}
             </div>
           </>
         )}
@@ -1008,9 +1107,11 @@ const PAGES_PER_VIEW = 5;
 function PagesTab({
   caseId,
   documents,
+  importantPages,
 }: {
   caseId: number;
   documents: JudicialDocument[];
+  importantPages?: JudicialCaseDetail["important_pages"];
 }) {
   const { toast } = useNotify();
   const [activeDocId, setActiveDocId] = useState<string | null>(
@@ -1116,6 +1217,30 @@ function PagesTab({
 
   return (
     <div className="space-y-4">
+      {/* Important pages — the folios that matter most */}
+      {importantPages && importantPages.length > 0 && (
+        <div>
+          <h3 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-3">
+            Important pages
+          </h3>
+          <div className="space-y-2">
+            {importantPages.map((p, i) => (
+              <div key={i} className="flex items-start gap-3 py-2.5 border-b border-sutra-line-2 last:border-0">
+                <span className="flex-none min-w-[44px] h-7 bg-amber-bg text-amber-ink border border-amber-200 rounded-[7px] grid place-items-center text-[12px] font-bold px-2">
+                  p. {p.page}
+                </span>
+                <div>
+                  <b className="text-[14.5px]">{p.title || "Page " + p.page}</b>
+                  {p.reason && (
+                    <p className="text-[14px] text-sutra-ink-2 mt-0.5">{p.reason}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Document picker */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mr-1">
@@ -1270,6 +1395,75 @@ function PagesTab({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PoliceTab({ data }: { data: JudicialCaseDetail }) {
+  const police = data.police_station;
+  if (
+    !police ||
+    (!police.station && !police.investigating_officer && !police.fir_number)
+  ) {
+    return (
+      <EmptyState
+        title="No police / IO details"
+        desc="Run Analysis to extract the police station, FIR details and investigating officer from your documents."
+      />
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div>
+        <h3 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-3">
+          Police station
+        </h3>
+        <div className="mb-4">
+          <b className="text-[15px]">{police.station || "Not recorded"}</b>
+        </div>
+        <h3 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-3">
+          FIR details
+        </h3>
+        <div className="space-y-2.5">
+          {[
+            ["FIR No.", police.fir_number],
+            ["Date", police.fir_date],
+            ["Sections", police.sections],
+          ].map(([label, value]) => (
+            <div key={label} className="flex items-baseline gap-2.5 py-1.5 border-b border-sutra-line-2 last:border-0">
+              <span className="text-sutra-ink-3 min-w-[90px] flex-none text-[14px]">{label}</span>
+              <b className="text-[14px]">{value || "—"}</b>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-3">
+          Investigating Officer
+        </h3>
+        <div className="mb-4">
+          <span className="block text-[11.5px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-0.5">
+            IO
+          </span>
+          <b className="text-[15px]">{police.investigating_officer || "Not recorded"}</b>
+          {police.io_badge && (
+            <span className="text-[13.5px] text-sutra-ink-3 block">
+              {police.io_badge}
+            </span>
+          )}
+        </div>
+        <div className="space-y-2.5">
+          {[
+            ["Contact", police.io_contact],
+            ["Status", police.charge_sheet_status],
+          ].map(([label, value]) => (
+            <div key={label} className="flex items-baseline gap-2.5 py-1.5 border-b border-sutra-line-2 last:border-0">
+              <span className="text-sutra-ink-3 min-w-[90px] flex-none text-[14px]">{label}</span>
+              <b className="text-[14px]">{value || "—"}</b>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

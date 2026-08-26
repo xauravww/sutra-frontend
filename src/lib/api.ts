@@ -425,6 +425,21 @@ export interface JudicialCaseDetail extends JudicialCase {
   legal_provisions?: unknown[];
   mediation_status?: "required" | "not_required" | "not_determined" | null;
   mediation_reason?: string | null;
+  important_pages?: {
+    page: string;
+    title: string;
+    reason: string;
+  }[];
+  police_station?: {
+    station?: string;
+    fir_number?: string;
+    fir_date?: string;
+    sections?: string;
+    investigating_officer?: string;
+    io_badge?: string;
+    io_contact?: string;
+    charge_sheet_status?: string;
+  } | null;
 }
 
 export interface JudicialChatMessage {
