@@ -394,6 +394,29 @@ export default function CaseDetailPage() {
                 Case No: <span className="font-semibold">{caseData.case_number}</span>
               </p>
             )}
+            {caseData.mediation_status && caseData.mediation_status !== "not_determined" && (
+              <div
+                className="mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1"
+                title={caseData.mediation_reason || undefined}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full flex-none ${
+                    caseData.mediation_status === "required"
+                      ? "bg-green-dot"
+                      : "bg-amber-dot"
+                  }`}
+                />
+                <span className="text-[12.5px] font-bold text-sutra-ink leading-none">
+                  Mediation{" "}
+                  {caseData.mediation_status === "required" ? "Required" : "Not Required"}
+                </span>
+                {caseData.mediation_reason && (
+                  <span className="text-[12px] text-sutra-ink-3 font-medium leading-snug border-l border-sutra-line pl-2 max-w-[260px] truncate">
+                    {caseData.mediation_reason}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <button
             onClick={handleDelete}

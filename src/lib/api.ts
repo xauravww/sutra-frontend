@@ -423,6 +423,8 @@ export interface JudicialCaseDetail extends JudicialCase {
   chronology?: unknown[];
   case_brief?: unknown;
   legal_provisions?: unknown[];
+  mediation_status?: "required" | "not_required" | "not_determined" | null;
+  mediation_reason?: string | null;
 }
 
 export interface JudicialChatMessage {
