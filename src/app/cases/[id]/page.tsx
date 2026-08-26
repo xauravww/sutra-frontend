@@ -5,11 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import TopBar from "@/components/TopBar";
 import { Spinner } from "@/components/ui/Button";
-import { judicialCases, type JudicialCaseDetail } from "@/lib/api";
+import { judicialCases, type JudicialCaseDetail, type JudicialDocument } from "@/lib/api";
 import { useNotify } from "@/components/ui/Notify";
 import Markdown from "react-markdown";
 
-type Tab = "overview" | "parties" | "witnesses" | "evidence" | "chronology" | "research";
+type Tab = "overview" | "parties" | "witnesses" | "evidence" | "chronology" | "research" | "pages";
 
 /* Quick access cards — one per tab, mirroring the workspace's analysis strip
    so a judge can reach any section of the case in one tap. */
@@ -81,6 +81,19 @@ const QUICK_ACCESS: {
       </>
     ),
   },
+  {
+    tab: "pages",
+    label: "Pages",
+    sub: "Page-by-page",
+    bg: "bg-tint text-navy",
+    icon: (
+      <>
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M14 3v5h5" />
+        <path d="M9 13h6M9 17h6" />
+      </>
+    ),
+  },
 ];
 
 export default function CaseDetailPage() {
@@ -101,6 +114,11 @@ export default function CaseDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tabPanelRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* ─── Inline document viewer (renders the PDF, no new tab) ─── */
+  const [viewerDoc, setViewerDoc] = useState<JudicialDocument | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   /* ─── Case Assistant chat ─── */
   const [chatOpen, setChatOpen] = useState(false);
@@ -255,6 +273,41 @@ export default function CaseDetailPage() {
     }
   };
 
+  /* Open a document in the inline viewer. The backend returns a short-lived
+     presigned URL, so we re-fetch it fresh each time the modal opens. */
+  const openViewer = async (doc: JudicialDocument) => {
+    if (!doc.file_url) {
+      toast("This document has no viewable file.", "error");
+      return;
+    }
+    setViewerDoc(doc);
+    setViewerLoading(true);
+    setViewerUrl(null);
+    try {
+      const res = await judicialCases.get(caseId);
+      const fresh = res.data.documents?.find((d) => d.id === doc.id);
+      setViewerUrl(fresh?.file_url ?? doc.file_url);
+    } catch {
+      setViewerUrl(doc.file_url);
+    } finally {
+      setViewerLoading(false);
+    }
+  };
+
+  const closeViewer = () => {
+    setViewerDoc(null);
+    setViewerUrl(null);
+  };
+
+  /* Esc closes the viewer. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeViewer();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const handleDelete = async () => {
     const ok = await confirm({
       title: "Delete case",
@@ -316,6 +369,7 @@ export default function CaseDetailPage() {
     evidence: listLength(caseData.evidence),
     chronology: listLength(caseData.chronology),
     research: listLength(caseData.legal_provisions),
+    pages: documents.reduce((n, d) => n + (d.page_count || 0), 0),
   };
 
   return (
@@ -452,14 +506,16 @@ export default function CaseDetailPage() {
                       {d.document_type && d.document_type !== "OTHER" ? ` · ${d.document_type}` : ""}
                     </p>
                   </div>
-                  <a
-                    href={d.file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[12.5px] font-semibold text-navy hover:underline flex-none no-underline"
+                  <button
+                    onClick={() => openViewer(d)}
+                    className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-navy hover:underline flex-none bg-transparent border-0 cursor-pointer"
                   >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
                     View
-                  </a>
+                  </button>
                   <button
                     onClick={() => deleteDoc(d.id, d.original_filename)}
                     disabled={deletingDocId === d.id}
@@ -619,10 +675,63 @@ export default function CaseDetailPage() {
               {activeTab === "evidence" && <EvidenceTab data={caseData} />}
               {activeTab === "chronology" && <ChronologyTab data={caseData} />}
               {activeTab === "research" && <ResearchTab data={caseData} />}
+              {activeTab === "pages" && <PagesTab caseId={caseId} documents={documents} />}
             </div>
           </>
         )}
       </main>
+
+      {/* ═══ Inline document viewer ═══ */}
+      {viewerDoc && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-[#F7F8FB]" role="dialog" aria-modal="true" aria-label={viewerDoc.original_filename}>
+          {/* Viewer header */}
+          <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-sutra-line bg-white flex-none">
+            <span className="flex-none w-9 h-9 rounded-[10px] bg-tint text-navy border border-tint-2 grid place-items-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="w-[18px] h-[18px]">
+                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                <path d="M14 3v5h5" />
+              </svg>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-[15px] font-bold text-sutra-ink truncate">
+                {viewerDoc.original_filename}
+              </h4>
+              <p className="text-[12.5px] text-sutra-ink-3">
+                {viewerDoc.page_count ? `${viewerDoc.page_count} pages` : ""}
+                {viewerDoc.file_size_bytes ? ` · ${formatBytes(viewerDoc.file_size_bytes)}` : ""}
+                {viewerDoc.document_type && viewerDoc.document_type !== "OTHER" ? ` · ${viewerDoc.document_type}` : ""}
+              </p>
+            </div>
+            <button
+              onClick={closeViewer}
+              className="flex-none w-9 h-9 rounded-lg border border-sutra-line bg-white text-sutra-ink-3 grid place-items-center hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors"
+              aria-label="Close viewer"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-[18px] h-[18px]">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Viewer body */}
+          <div className="flex-1 min-h-0 relative bg-[#F7F8FB]">
+            {viewerLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sutra-ink-3">
+                <Spinner className="w-8 h-8 text-navy" />
+                <p className="text-[14px] font-semibold">Loading document…</p>
+              </div>
+            )}
+            {viewerUrl && (
+              <iframe
+                key={viewerUrl}
+                src={viewerUrl}
+                title={viewerDoc.original_filename}
+                className="w-full h-full border-0 bg-white"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══ Case Assistant FAB ═══ */}
       <button onClick={() => setChatOpen(!chatOpen)}
@@ -858,6 +967,286 @@ function ResearchTab({ data }: { data: JudicialCaseDetail }) {
           {p.description && <p className="text-[14px] text-sutra-ink-2 mt-1">{p.description}</p>}
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ─── Page-by-page summaries ─── */
+
+interface PageSummary {
+  page_number: number;
+  summary: string;
+  status: string;
+}
+
+/** How many pages are shown at once in the paginated reader. */
+const PAGES_PER_VIEW = 5;
+
+function PagesTab({
+  caseId,
+  documents,
+}: {
+  caseId: number;
+  documents: JudicialDocument[];
+}) {
+  const { toast } = useNotify();
+  const [activeDocId, setActiveDocId] = useState<string | null>(
+    documents[0]?.id ?? null
+  );
+  const [pages, setPages] = useState<PageSummary[]>([]);
+  const [running, setRunning] = useState(false);
+  const [openedDocId, setOpenedDocId] = useState<string | null>(null);
+  /* First page number shown in the paginated reader window. */
+  const [viewStart, setViewStart] = useState(1);
+  const cancelRef = useRef(false);
+  const followRef = useRef(true);
+
+  const activeDoc = documents.find((d) => d.id === activeDocId) ?? null;
+
+  if (!documents.length) {
+    return (
+      <EmptyState
+        title="No documents to summarise"
+        desc="Upload a PDF document to this case first."
+      />
+    );
+  }
+
+  const total = activeDoc?.page_count || 0;
+  const sortedPages = [...pages].sort((a, b) => a.page_number - b.page_number);
+  const completedCount = sortedPages.filter((p) => p.status === "completed").length;
+  const progress = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+
+  const selectDoc = async (docId: string) => {
+    cancelRef.current = true;
+    setActiveDocId(docId);
+    setPages([]);
+    setOpenedDocId(null);
+    setViewStart(1);
+    followRef.current = true;
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc) return;
+    // Show already-stored summaries immediately, if any.
+    if (doc.page_summaries?.length) {
+      setPages(
+        doc.page_summaries
+          .map((s) => ({
+            page_number: s.page_number,
+            summary: s.summary || "",
+            status: s.status,
+          }))
+          .sort((a, b) => a.page_number - b.page_number)
+      );
+      setOpenedDocId(docId);
+    }
+  };
+
+  const runSummaries = async () => {
+    if (!activeDoc || running) return;
+    cancelRef.current = false;
+    followRef.current = true;
+    setRunning(true);
+    setPages([]);
+    setOpenedDocId(activeDoc.id);
+    setViewStart(1);
+    try {
+      for (let p = 1; p <= total; p++) {
+        if (cancelRef.current) break;
+        try {
+          const res = await judicialCases.getPageSummary(caseId, activeDoc.id, p);
+          setPages((prev) => [
+            ...prev.filter((x) => x.page_number !== p),
+            { page_number: p, summary: res.data.summary, status: res.data.status },
+          ]);
+        } catch {
+          setPages((prev) => [
+            ...prev.filter((x) => x.page_number !== p),
+            {
+              page_number: p,
+              summary: `Summary for page ${p} could not be loaded.`,
+              status: "failed",
+            },
+          ]);
+        }
+        /* Follow the generation — page the reader forward so the newest
+           summary stays on screen. Once the user navigates manually, this
+           parks and no longer yanks the view. */
+        if (followRef.current) {
+          setViewStart(Math.floor((p - 1) / PAGES_PER_VIEW) * PAGES_PER_VIEW + 1);
+        }
+      }
+      toast("Page summaries ready.", "success");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  /* Windowed slice for the paginated reader. */
+  const viewPages = sortedPages.filter(
+    (p) => p.page_number >= viewStart && p.page_number < viewStart + PAGES_PER_VIEW
+  );
+  const viewHasPrev = sortedPages.some((p) => p.page_number < viewStart);
+  const viewHasNext = sortedPages.some(
+    (p) => p.page_number >= viewStart + PAGES_PER_VIEW
+  );
+  const viewEnd = Math.min(viewStart + PAGES_PER_VIEW - 1, total);
+
+  return (
+    <div className="space-y-4">
+      {/* Document picker */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mr-1">
+          Document
+        </span>
+        {documents.map((d) => (
+          <button
+            key={d.id}
+            onClick={() => selectDoc(d.id)}
+            disabled={running}
+            className={`text-[13px] font-semibold px-3 py-1.5 rounded-lg border-[1.5px] transition-colors disabled:opacity-50 ${
+              d.id === activeDocId
+                ? "border-navy bg-tint text-navy"
+                : "border-sutra-line bg-white text-sutra-ink-2 hover:border-navy hover:bg-tint"
+            }`}
+          >
+            {d.original_filename}
+            {d.page_count ? ` (${d.page_count}p)` : ""}
+          </button>
+        ))}
+      </div>
+
+      {/* Generate + linear progress */}
+      {activeDoc && total > 0 && (
+        <div className="rounded-xl border border-sutra-line bg-white p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-[13.5px] font-bold text-sutra-ink">
+                {running
+                  ? `Reading page ${Math.min(completedCount + 1, total)} of ${total}…`
+                  : openedDocId === activeDoc.id
+                  ? `${completedCount} of ${total} pages summarised`
+                  : "Generate a summary for every page of this document."}
+              </p>
+              <p className="text-[12.5px] text-sutra-ink-3">
+                {progress}% complete · summaries are saved so you can re-view them anytime
+              </p>
+            </div>
+            <button
+              onClick={runSummaries}
+              disabled={running}
+              className="inline-flex items-center gap-2 bg-navy text-white rounded-xl text-[13.5px] font-semibold px-4 py-2.5 min-h-[42px] transition-colors hover:bg-navy-dark disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {running ? (
+                <Spinner className="w-4 h-4" />
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <path d="M21 3v6h-6" />
+                </svg>
+              )}
+              {running
+                ? "Summarising…"
+                : openedDocId === activeDoc.id && completedCount === total
+                ? "Regenerate"
+                : "Generate page summaries"}
+            </button>
+          </div>
+
+          {/* Linear progress bar */}
+          <div className="h-[5px] bg-sutra-line-2 rounded-full mt-3 overflow-hidden">
+            <div
+              className="h-full bg-navy rounded-full transition-[width] duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Page list */}
+      {activeDoc && total === 0 ? (
+        <p className="text-[14px] text-sutra-ink-3">
+          Page count is unknown for this document.
+        </p>
+      ) : sortedPages.length === 0 ? (
+        <p className="text-[14px] text-sutra-ink-3">
+          {running ? "Starting…" : "Page summaries will appear here."}
+        </p>
+      ) : (
+        <div className="bg-white border border-sutra-line rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-sutra-line-2 bg-[#FAFBFD]">
+            <p className="text-[12.5px] font-semibold text-sutra-ink-3">
+              Pages {viewStart}–{viewEnd} of {total}
+            </p>
+            {/* Pagination controls */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => {
+                  followRef.current = false;
+                  setViewStart((v) => Math.max(1, v - PAGES_PER_VIEW));
+                }}
+                disabled={!viewHasPrev || running}
+                aria-label="Previous pages"
+                className="w-8 h-8 grid place-items-center rounded-lg border border-sutra-line bg-white text-sutra-ink-2 hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors disabled:opacity-35 disabled:pointer-events-none"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+
+              {/* Jump to page */}
+              <select
+                value={viewStart}
+                onChange={(e) => {
+                  followRef.current = false;
+                  const p = Number(e.target.value);
+                  setViewStart(Math.floor((p - 1) / PAGES_PER_VIEW) * PAGES_PER_VIEW + 1);
+                }}
+                disabled={running}
+                className="h-8 rounded-lg border border-sutra-line bg-white text-[12.5px] font-semibold text-sutra-ink-2 px-2 outline-none focus:border-navy transition-colors disabled:opacity-35"
+                aria-label="Jump to page"
+              >
+                {sortedPages.map((p) => (
+                  <option key={p.page_number} value={p.page_number}>
+                    p. {p.page_number}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => {
+                  followRef.current = false;
+                  setViewStart((v) => v + PAGES_PER_VIEW);
+                }}
+                disabled={!viewHasNext || running}
+                aria-label="Next pages"
+                className="w-8 h-8 grid place-items-center rounded-lg border border-sutra-line bg-white text-sutra-ink-2 hover:bg-[#F2F5F9] hover:border-[#C6CDD7] transition-colors disabled:opacity-35 disabled:pointer-events-none"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div className="divide-y divide-sutra-line-2">
+            {viewPages.map((p) => (
+              <div key={p.page_number} className="flex items-start gap-3 px-4 py-3.5">
+                <span className="flex-none min-w-[52px] h-7 bg-tint text-navy border border-tint-2 rounded-[7px] grid place-items-center text-[12px] font-bold px-2">
+                  p. {p.page_number}
+                </span>
+                <p className="text-[15px] text-sutra-ink-2 leading-relaxed">
+                  {p.summary || "Loading…"}
+                </p>
+              </div>
+            ))}
+            {viewPages.length === 0 && (
+              <p className="px-4 py-6 text-[14px] text-sutra-ink-3 text-center">
+                No summaries in this range yet — keep generating, or jump to a page above.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

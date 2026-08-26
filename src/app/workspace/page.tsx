@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import TopBar from "@/components/TopBar";
+import { workspace as workspaceApi } from "@/lib/api";
 
 /* ─── Types ─── */
 type MsgKind = "text" | "analysis" | "pages" | "verdict";
@@ -15,11 +16,17 @@ interface DocEntry {
   id: string;
   name: string;
   size: number;
+  /** original File kept so the PDF can be uploaded to the backend on demand */
+  file: File;
   /** pdf.js PDFDocumentProxy */
   pdf: any;
   numPages: number;
   /** page the reader is on, kept per document */
   page: number;
+  /** backend workspace document id (after upload), null until uploaded */
+  backendId: number | null;
+  /** true once upload succeeded, so we never re-upload the same file */
+  uploaded: boolean;
 }
 
 interface Message {
@@ -52,16 +59,40 @@ function formatSize(bytes: number) {
 }
 
 /**
- * Per-page analysis seam.
- * TODO: replace the stub with the backend call once the per-page endpoint exists
- * (nothing under /api/v1/ai serves this yet — only /suggest-type).
+ * Upload a workspace PDF to the backend once (dedupe by content hash keeps
+ * re-uploads idempotent), then return the per-page summary for `pageNo`.
+ * The backend persists each page's summary, so repeat runs are served from
+ * the DB instead of re-running the AI.
  */
-async function summarisePage(pageNo: number): Promise<PageNote> {
-  await new Promise((r) => setTimeout(r, 160));
-  return {
+async function summarisePage(
+  doc: DocEntry,
+  pageNo: number,
+  getBackendId: () => number | null,
+  setBackendId: (id: number | null) => void
+): Promise<PageNote> {
+  const fallback: PageNote = {
     page: pageNo,
-    text: `Placeholder summary for page ${pageNo} — the real per-page analysis lands here once the backend endpoint is wired.`,
+    text: `Summary for page ${pageNo} is unavailable right now.`,
   };
+
+  let backendId = getBackendId();
+  if (!backendId && !doc.uploaded) {
+    try {
+      const res = await workspaceApi.uploadDocument(doc.file);
+      backendId = res.data.id;
+      setBackendId(backendId);
+    } catch {
+      return fallback;
+    }
+  }
+  if (!backendId) return fallback;
+
+  try {
+    const res = await workspaceApi.getPageSummary(backendId, pageNo);
+    return { page: pageNo, text: res.data.summary };
+  } catch {
+    return fallback;
+  }
 }
 
 
@@ -70,6 +101,9 @@ export default function WorkspacePage() {
   /* Document state — any number of PDFs, one active at a time */
   const [docs, setDocs] = useState<DocEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [pastDocs, setPastDocs] = useState<Awaited<
+    ReturnType<typeof workspaceApi.list>
+  >["data"]>([]);
   const [opening, setOpening] = useState(0);
   const [zoom, setZoom] = useState(100);
   const [fullscreen, setFullscreen] = useState(false);
@@ -194,9 +228,12 @@ export default function WorkspacePage() {
             id: crypto.randomUUID(),
             name: file.name,
             size: file.size,
+            file,
             pdf,
             numPages: pdf.numPages,
             page: 1,
+            backendId: null,
+            uploaded: false,
           };
           setDocs((prev) => [...prev, entry]);
           setActiveId(entry.id);
@@ -239,6 +276,70 @@ export default function WorkspacePage() {
       );
     },
     [activeId]
+  );
+
+  /* Load the user's previously analysed documents so they can re-open any of
+     them and view the stored per-page summaries at any time. */
+  useEffect(() => {
+    let stale = false;
+    workspaceApi
+      .list()
+      .then((res) => {
+        if (!stale) setPastDocs(res.data);
+      })
+      .catch(() => {
+        /* offline / unauthenticated — silently skip */
+      });
+    return () => {
+      stale = true;
+    };
+  }, []);
+
+  /* Re-open a past document: fetch the stored PDF bytes from the backend,
+     parse them with pdf.js, and register the doc with its backend id so the
+     "Case Summary" walk is served straight from the stored DB summaries. */
+  const openPastDocument = useCallback(
+    async (backendDoc: Awaited<ReturnType<typeof workspaceApi.list>>["data"][number]) => {
+      setOpening((n) => n + 1);
+      await loadPdfJs();
+      const lib = (window as any).pdfjsLib;
+      try {
+        const data = new Uint8Array(
+          await workspaceApi.getFile(backendDoc.id)
+        );
+        const pdf = await lib.getDocument({ data }).promise;
+        const entry: DocEntry = {
+          id: crypto.randomUUID(),
+          name: backendDoc.original_filename,
+          size: data.byteLength,
+          file: new File([data], backendDoc.original_filename, {
+            type: "application/pdf",
+          }),
+          pdf,
+          numPages: pdf.numPages,
+          page: 1,
+          backendId: backendDoc.id,
+          uploaded: true,
+        };
+        setDocs((prev) => [...prev, entry]);
+        setActiveId(entry.id);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            kind: "text",
+            content: `Could not open "${backendDoc.original_filename}" from stored files: ${message}`,
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setOpening((n) => n - 1);
+      }
+    },
+    [loadPdfJs]
   );
 
   /* ─── Pan (drag to scroll the zoomed page) ─── */
@@ -412,9 +513,28 @@ export default function WorkspacePage() {
           streaming: true,
         });
 
+        /* Track the backend workspace doc id for this document across the
+           stream; stored so re-running (or re-opening) hits the DB cache. */
+        let backendId = activeDoc.backendId;
+        const setBackendId = (id: number | null) => {
+          backendId = id;
+          setDocs((prev) =>
+            prev.map((d) =>
+              d.id === activeDoc.id
+                ? { ...d, backendId: id, uploaded: id !== null }
+                : d
+            )
+          );
+        };
+
         for (let p = 1; p <= total; p++) {
           if (cancelRef.current) break;
-          const note = await summarisePage(p);
+          const note = await summarisePage(
+            activeDoc,
+            p,
+            () => backendId,
+            setBackendId
+          );
           appendPage(streamId, note);
         }
         patchMessage(streamId, { streaming: false });
@@ -432,7 +552,7 @@ export default function WorkspacePage() {
 
       setSending(false);
     },
-    [sending, activeDoc, pushMessage, patchMessage, appendPage, scrollToLatest]
+    [sending, activeDoc, pushMessage, patchMessage, appendPage, scrollToLatest, setDocs]
   );
 
   const stopStream = useCallback(() => {
@@ -739,47 +859,109 @@ export default function WorkspacePage() {
             }}
           >
             {docs.length === 0 ? (
-              <div
-                className="m-auto flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-sutra-line rounded-2xl bg-white cursor-pointer transition-colors hover:border-navy hover:bg-tint"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="w-16 h-16 rounded-2xl bg-tint text-navy grid place-items-center mb-4 border border-tint-2">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="w-7 h-7"
-                  >
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
+              <div className="m-auto w-full max-w-[560px] flex flex-col gap-4">
+                <div
+                  className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-sutra-line rounded-2xl bg-white cursor-pointer transition-colors hover:border-navy hover:bg-tint"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-tint text-navy grid place-items-center mb-4 border border-tint-2">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-7 h-7"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-sutra-ink">
+                    Upload case documents
+                  </h3>
+                  <p className="text-[16px] text-sutra-ink-2 mt-1.5">
+                    Drag &amp; drop PDFs here, or click to browse
+                  </p>
+                  <span className="text-[13.5px] text-sutra-ink-3 mt-1">
+                    Several files at once is fine — add or remove any time
+                  </span>
+                  <button className="mt-5 inline-flex items-center justify-center gap-2.5 bg-navy text-white border-0 rounded-xl text-[17px] font-semibold px-6 py-3.5 min-h-[52px] transition-colors hover:bg-navy-dark">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      className="w-[22px] h-[22px]"
+                    >
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    Browse files
+                  </button>
                 </div>
-                <h3 className="text-xl font-bold text-sutra-ink">
-                  Upload case documents
-                </h3>
-                <p className="text-[16px] text-sutra-ink-2 mt-1.5">
-                  Drag &amp; drop PDFs here, or click to browse
-                </p>
-                <span className="text-[13.5px] text-sutra-ink-3 mt-1">
-                  Several files at once is fine — add or remove any time
-                </span>
-                <button className="mt-5 inline-flex items-center justify-center gap-2.5 bg-navy text-white border-0 rounded-xl text-[17px] font-semibold px-6 py-3.5 min-h-[52px] transition-colors hover:bg-navy-dark">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    className="w-[22px] h-[22px]"
-                  >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Browse files
-                </button>
+
+                {pastDocs.length > 0 && (
+                  <div className="rounded-2xl border border-sutra-line bg-white overflow-hidden">
+                    <div className="px-4 py-3 border-b border-sutra-line-2 flex items-center gap-2">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        className="w-[15px] h-[15px] text-sutra-ink-3"
+                      >
+                        <path d="M12 8v4l3 3" />
+                        <circle cx="12" cy="12" r="9" />
+                      </svg>
+                      <span className="text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+                        Previously analysed
+                      </span>
+                      <span className="text-[11.5px] font-semibold text-sutra-ink-3 bg-sutra-line-2 rounded-full px-2 py-0.5">
+                        {pastDocs.length}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-sutra-line-2 max-h-[280px] overflow-y-auto">
+                      {pastDocs.map((d) => (
+                        <button
+                          key={d.id}
+                          onClick={() => openPastDocument(d)}
+                          disabled={opening > 0}
+                          className="w-full flex items-center gap-3 px-4 py-3 bg-transparent border-0 text-left cursor-pointer hover:bg-tint transition-colors disabled:opacity-50 disabled:cursor-default"
+                        >
+                          <span className="flex-none w-9 h-9 rounded-[10px] bg-tint text-navy border border-tint-2 grid place-items-center">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.7"
+                              className="w-[17px] h-[17px]"
+                            >
+                              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                              <path d="M14 3v5h5" />
+                            </svg>
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[14px] font-bold text-sutra-ink truncate">
+                              {d.original_filename}
+                            </span>
+                            <span className="block text-[12.5px] text-sutra-ink-3">
+                              {d.num_pages} page{d.num_pages === 1 ? "" : "s"}
+                              {d.page_summaries?.length
+                                ? ` · ${d.page_summaries.filter((p) => p.summary).length} summarised`
+                                : ""}
+                            </span>
+                          </span>
+                          <span className="flex-none text-[13px] font-bold text-navy">
+                            {opening > 0 ? "Opening…" : "Open"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <canvas

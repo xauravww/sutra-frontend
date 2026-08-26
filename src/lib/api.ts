@@ -405,6 +405,11 @@ export interface JudicialDocument {
   document_type: string;
   page_count?: number;
   uploaded_at: string;
+  page_summaries?: {
+    page_number: number;
+    summary?: string | null;
+    status: string;
+  }[];
 }
 
 export interface JudicialCaseDetail extends JudicialCase {
@@ -499,6 +504,20 @@ export const judicialCases = {
       { method: "DELETE" }
     ),
 
+  getPageSummary: (id: number, docId: string, page: number) =>
+    request<{
+      success: boolean;
+      data: { page_number: number; summary: string; status: string };
+    }>(`/api/v1/judicial-cases/${id}/documents/${docId}/pages/${page}`),
+
+  summarizeAllPages: (id: number, docId: string) =>
+    request<{
+      success: boolean;
+      data: { page_number: number; summary: string; status: string }[];
+    }>(`/api/v1/judicial-cases/${id}/documents/${docId}/summarize-all`, {
+      method: "POST",
+    }),
+
   chatHistory: (id: number) =>
     request<{ success: boolean; data: JudicialChatMessage[] }>(
       `/api/v1/judicial-cases/${id}/chat`
@@ -512,6 +531,100 @@ export const judicialCases = {
       method: "POST",
       json: { question },
     }),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Case Workspace — per-page document summaries                       */
+/* ------------------------------------------------------------------ */
+
+export interface WorkspaceDocument {
+  id: number;
+  original_filename: string;
+  file_sha256: string;
+  file_url?: string | null;
+  num_pages: number;
+  status: string;
+  created_at: string;
+  updated_at?: string;
+  is_new?: boolean;
+  page_summaries?: {
+    page_number: number;
+    summary?: string | null;
+    page_text?: string | null;
+    status: string;
+    updated_at?: string;
+  }[];
+}
+
+export const workspace = {
+  /** Upload a PDF into the workspace. Re-uploading the same bytes returns the stored doc + summaries. */
+  uploadDocument: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const headers: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("accessToken");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
+    return fetch(`${BASE}/api/v1/ai/workspace/documents`, {
+      method: "POST",
+      headers,
+      body: formData,
+      credentials: "include",
+    }).then(async (r) => {
+      const body = await r.json();
+      if (!r.ok) throw new ApiError(r.status, body?.message ?? "Upload failed", body);
+      return body as { success: boolean; data: WorkspaceDocument };
+    });
+  },
+
+  /** List every workspace document for the current user (view anytime). */
+  list: () =>
+    request<{ success: boolean; data: WorkspaceDocument[] }>(
+      "/api/v1/ai/workspace/documents"
+    ),
+
+  /** Fetch a document with all stored page summaries. */
+  get: (id: number) =>
+    request<{ success: boolean; data: WorkspaceDocument }>(
+      `/api/v1/ai/workspace/documents/${id}`
+    ),
+
+  /** Stream the stored PDF bytes back (view anytime without re-upload). */
+  getFile: async (id: number): Promise<ArrayBuffer> => {
+    const headers: Record<string, string> = {
+      "X-Requested-With": "XMLHttpRequest",
+    };
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("accessToken");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${BASE}/api/v1/ai/workspace/documents/${id}/file`, {
+      headers,
+      credentials: "include",
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      throw new ApiError(res.status, res.statusText);
+    }
+    return res.arrayBuffer();
+  },
+
+  /** Get one page's summary — generated + persisted on first hit, cached after. */
+  getPageSummary: (id: number, page: number) =>
+    request<{
+      success: boolean;
+      data: { page_number: number; summary: string; status: string };
+    }>(`/api/v1/ai/workspace/documents/${id}/pages/${page}`),
+
+  /** Backfill every page's summary in one request. */
+  summarizeAll: (id: number) =>
+    request(`/api/v1/ai/workspace/documents/${id}/summarize-all`, {
+      method: "POST",
+    }),
+
+  delete: (id: number) =>
+    request(`/api/v1/ai/workspace/documents/${id}`, { method: "DELETE" }),
 };
 
 /* ------------------------------------------------------------------ */
