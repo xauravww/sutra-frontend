@@ -440,6 +440,15 @@ export interface JudicialCaseDetail extends JudicialCase {
     io_contact?: string;
     charge_sheet_status?: string;
   } | null;
+  court_history?: {
+    court?: string;
+    stage?: string;
+    date?: string;
+    case_number?: string;
+    action?: string;
+    outcome?: string;
+    page_reference?: string;
+  }[];
 }
 
 export interface JudicialChatMessage {

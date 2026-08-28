@@ -9,7 +9,7 @@ import { judicialCases, type JudicialCaseDetail, type JudicialDocument, type Jud
 import { useNotify } from "@/components/ui/Notify";
 import Markdown from "react-markdown";
 
-type Tab = "overview" | "parties" | "witnesses" | "evidence" | "chronology" | "research" | "pages" | "police";
+type Tab = "overview" | "parties" | "witnesses" | "evidence" | "chronology" | "research" | "pages" | "police" | "courts";
 
 /* Quick access cards — one per tab, mirroring the workspace's analysis strip
    so a judge can reach any section of the case in one tap. */
@@ -107,6 +107,21 @@ const QUICK_ACCESS: {
       </>
     ),
   },
+  {
+    tab: "courts",
+    label: "Courts",
+    sub: "Court trail",
+    bg: "bg-tint text-navy",
+    icon: (
+      <>
+        <path d="M3 21h18" />
+        <path d="M4 21V8l-2 3h4l-2-3v13" />
+        <path d="M12 21V4" />
+        <path d="M8 21v-8h8v8" />
+        <path d="M20 21V8l-2 3h4l-2-3v13" />
+      </>
+    ),
+  },
 ];
 
 /* Icon palette for user-defined cards. */
@@ -177,6 +192,7 @@ const TAB_OPTIONS: { tab: Tab; label: string }[] = [
   { tab: "research", label: "Research" },
   { tab: "pages", label: "Pages" },
   { tab: "police", label: "Police / IO" },
+  { tab: "courts", label: "Courts" },
 ];
 
 /** Human label for an item deep-link target, e.g. "Party 2 — Rajesh Kumar Mehta". */
@@ -188,6 +204,7 @@ function itemLabel(data: JudicialCaseDetail, tab: Tab, index: number): string {
   else if (tab === "evidence") list = (data.evidence as unknown[] | undefined) ?? [];
   else if (tab === "chronology") list = (data.chronology as unknown[] | undefined) ?? [];
   else if (tab === "research") list = (data.legal_provisions as unknown[] | undefined) ?? [];
+  else if (tab === "courts") list = (data.court_history as unknown[] | undefined) ?? [];
   const item = list[index];
   if (!item) return `Item ${index + 1}`;
   return name(item) || `Item ${index + 1}`;
@@ -579,6 +596,7 @@ export default function CaseDetailPage() {
     research: listLength(caseData.legal_provisions),
     pages: documents.reduce((n, d) => n + (d.page_count || 0), 0),
     police: caseData.police_station ? 1 : 0,
+    courts: listLength(caseData.court_history),
   };
 
   return (
@@ -604,25 +622,24 @@ export default function CaseDetailPage() {
               </p>
             )}
             {caseData.mediation_status && caseData.mediation_status !== "not_determined" && (
-              <div
-                className="mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1"
-                title={caseData.mediation_reason || undefined}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full flex-none ${
-                    caseData.mediation_status === "required"
-                      ? "bg-green-dot"
-                      : "bg-amber-dot"
-                  }`}
-                />
-                <span className="text-[12.5px] font-bold text-sutra-ink leading-none">
-                  Mediation{" "}
-                  {caseData.mediation_status === "required" ? "Required" : "Not Required"}
-                </span>
-                {caseData.mediation_reason && (
-                  <span className="text-[12px] text-sutra-ink-3 font-medium leading-snug border-l border-sutra-line pl-2 max-w-[260px] truncate">
-                    {caseData.mediation_reason}
+              <div className="mt-2.5">
+                <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
+                  <span
+                    className={`w-2 h-2 rounded-full flex-none ${
+                      caseData.mediation_status === "required"
+                        ? "bg-green-dot"
+                        : "bg-amber-dot"
+                    }`}
+                  />
+                  <span className="text-[12.5px] font-bold text-sutra-ink leading-none">
+                    Mediation{" "}
+                    {caseData.mediation_status === "required" ? "Required" : "Not Required"}
                   </span>
+                </div>
+                {caseData.mediation_reason && (
+                  <p className="mt-2 text-[13.5px] text-sutra-ink-2 font-medium leading-snug max-w-[600px]">
+                    {caseData.mediation_reason}
+                  </p>
                 )}
               </div>
             )}
@@ -1006,6 +1023,12 @@ export default function CaseDetailPage() {
                 <PagesTab caseId={caseId} documents={documents} importantPages={caseData.important_pages} />
               )}
               {activeTab === "police" && <PoliceTab data={caseData} />}
+              {activeTab === "courts" && (
+                <CourtsTab
+                  data={caseData}
+                  highlightIndex={highlight?.tab === "courts" ? highlight.index : null}
+                />
+              )}
             </div>
           </>
         )}
@@ -1693,6 +1716,58 @@ function PoliceTab({ data }: { data: JudicialCaseDetail }) {
   );
 }
 
+function CourtsTab({ data, highlightIndex }: { data: JudicialCaseDetail; highlightIndex?: number | null }) {
+  const courts = (data.court_history as any[]) || [];
+  if (!courts.length) {
+    return (
+      <EmptyState
+        title="No court history yet"
+        desc="Run Analysis to trace which courts this case has passed through."
+      />
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {courts.map((c: any, i: number) => (
+        <div
+          key={i}
+          data-item-idx={i}
+          className={`flex items-start gap-3 py-3.5 border-b border-sutra-line-2 last:border-0 rounded-lg ${i === highlightIndex ? "flash-item" : ""}`}
+        >
+          <span className="flex-none w-8 h-8 rounded-full bg-tint text-navy grid place-items-center font-bold text-[14px] border border-tint-2">
+            {i + 1}
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+              <b className="text-[15px]">{c.court || `Court ${i + 1}`}</b>
+              {c.stage && (
+                <span className="text-[12.5px] font-semibold text-sutra-ink-2">{c.stage}</span>
+              )}
+              {c.date && <span className="text-[12.5px] text-sutra-ink-3">{c.date}</span>}
+            </div>
+            {c.action && <p className="text-[14px] text-sutra-ink-2 mt-1">{c.action}</p>}
+            {(c.case_number || c.outcome) && (
+              <div className="flex flex-wrap gap-2 mt-1.5">
+                {c.case_number && (
+                  <span className="text-[11.5px] font-semibold text-sutra-ink-3 bg-[#F4F6F8] border border-sutra-line-2 rounded-full px-2 py-0.5">
+                    {c.case_number}
+                  </span>
+                )}
+                {c.outcome && (
+                  <span className="text-[11.5px] font-semibold rounded-full px-2 py-0.5 border bg-tint text-navy border-[#CFE0F0]">
+                    {c.outcome}
+                  </span>
+                )}
+              </div>
+            )}
+            {c.page_reference && <span className="text-[12px] text-sutra-ink-3">p. {c.page_reference}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Create / edit custom card modal ─── */
 
 interface CardModalProps {
@@ -1720,7 +1795,7 @@ const ACTION_TYPES: { value: JudicialCaseCard["action_type"]; label: string; des
 ];
 
 /* Tabs that expose selectable items for the "item" action. */
-const ITEM_TABS: Tab[] = ["parties", "witnesses", "evidence", "chronology", "research"];
+const ITEM_TABS: Tab[] = ["parties", "witnesses", "evidence", "chronology", "research", "courts"];
 
 function CardModal({ open, editing, data, documents, onClose, onSave, saving }: CardModalProps) {
   const [label, setLabel] = useState(editing?.label ?? "");
