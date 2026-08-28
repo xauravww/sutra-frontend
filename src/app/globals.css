@@ -74,6 +74,22 @@
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Deep-link highlight flash for case items */
+@keyframes itemFlash {
+  0% {
+    background-color: #dce9f5;
+    box-shadow: 0 0 0 3px rgba(19, 41, 75, 0.18);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+.flash-item {
+  animation: itemFlash 2.6s ease-out both;
+}
+
 /* Chat markdown rendering */
 .chat-markdown p {
   margin-bottom: 0.5em;

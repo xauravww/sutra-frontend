@@ -451,6 +451,28 @@ export interface JudicialChatMessage {
   created_at: string;
 }
 
+/** User-defined quick access card on the judge dashboard. */
+export interface JudicialCaseCard {
+  id: number;
+  case_id: number;
+  user_id: number;
+  label: string;
+  subtitle?: string | null;
+  action_type: "chat" | "tab" | "folio" | "item";
+  action_value: {
+    query?: string;
+    tab?: string;
+    docId?: string;
+    page?: number;
+    index?: number;
+  };
+  icon?: string | null;
+  color?: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export const judicialCases = {
   list: () =>
     request<{ success: boolean; data: JudicialCase[] }>(
@@ -547,6 +569,29 @@ export const judicialCases = {
     }>(`/api/v1/judicial-cases/${id}/chat`, {
       method: "POST",
       json: { question },
+    }),
+
+  /* User-defined quick access cards */
+  listCards: (id: number) =>
+    request<{ success: boolean; data: JudicialCaseCard[] }>(
+      `/api/v1/judicial-cases/${id}/cards`
+    ),
+
+  createCard: (id: number, data: Partial<JudicialCaseCard>) =>
+    request<{ success: boolean; data: JudicialCaseCard }>(
+      `/api/v1/judicial-cases/${id}/cards`,
+      { method: "POST", json: data }
+    ),
+
+  updateCard: (id: number, cardId: number, data: Partial<JudicialCaseCard>) =>
+    request<{ success: boolean; data: JudicialCaseCard }>(
+      `/api/v1/judicial-cases/${id}/cards/${cardId}`,
+      { method: "PUT", json: data }
+    ),
+
+  deleteCard: (id: number, cardId: number) =>
+    request(`/api/v1/judicial-cases/${id}/cards/${cardId}`, {
+      method: "DELETE",
     }),
 };
 

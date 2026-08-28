@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import TopBar from "@/components/TopBar";
 import { Spinner } from "@/components/ui/Button";
-import { judicialCases, type JudicialCaseDetail, type JudicialDocument } from "@/lib/api";
+import { judicialCases, type JudicialCaseDetail, type JudicialDocument, type JudicialCaseCard } from "@/lib/api";
 import { useNotify } from "@/components/ui/Notify";
 import Markdown from "react-markdown";
 
@@ -109,6 +109,90 @@ const QUICK_ACCESS: {
   },
 ];
 
+/* Icon palette for user-defined cards. */
+const CARD_ICONS: Record<string, React.ReactNode> = {
+  star: <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />,
+  search: (
+    <>
+      <path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" />
+      <path d="M21 21l-4.35-4.35" />
+    </>
+  ),
+  bookmark: <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
+  pin: (
+    <>
+      <path d="M12 17v5" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1z" />
+    </>
+  ),
+  flag: (
+    <>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <path d="M4 22v-7" />
+    </>
+  ),
+  sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z" />,
+  gavel: (
+    <>
+      <path d="m14 13-8.5 8.5a2.12 2.12 0 1 1-3-3L11 10" />
+      <path d="m16 16 6-6" />
+      <path d="m8 8 6-6" />
+      <path d="m9 7 8 8" />
+      <path d="m21 11-8-8" />
+    </>
+  ),
+  scale: (
+    <>
+      <path d="M12 3v18" />
+      <path d="M7 21h10" />
+      <path d="M5 7h14" />
+      <path d="m6 7 2.5 8h7L18 7" />
+      <path d="m4 11 2-4 2 4" />
+    </>
+  ),
+  lightbulb: (
+    <>
+      <path d="M9 18h6" />
+      <path d="M10 22h4" />
+      <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
+    </>
+  ),
+};
+
+const CARD_COLORS: { value: string; label: string; swatch: string }[] = [
+  { value: "bg-tint text-navy", label: "Blue", swatch: "bg-tint" },
+  { value: "bg-amber-bg text-amber-ink", label: "Amber", swatch: "bg-amber-bg" },
+  { value: "bg-green-bg text-green-ink", label: "Green", swatch: "bg-green-bg" },
+  { value: "bg-red-50 text-red-700", label: "Red", swatch: "bg-red-50" },
+  { value: "bg-[#F0EFFB] text-[#4F46E5]", label: "Violet", swatch: "bg-[#F0EFFB]" },
+  { value: "bg-slate-100 text-slate-700", label: "Grey", swatch: "bg-slate-100" },
+];
+
+const TAB_OPTIONS: { tab: Tab; label: string }[] = [
+  { tab: "overview", label: "Case Brief" },
+  { tab: "parties", label: "Parties" },
+  { tab: "witnesses", label: "Witnesses" },
+  { tab: "evidence", label: "Evidence" },
+  { tab: "chronology", label: "Chronology" },
+  { tab: "research", label: "Research" },
+  { tab: "pages", label: "Pages" },
+  { tab: "police", label: "Police / IO" },
+];
+
+/** Human label for an item deep-link target, e.g. "Party 2 — Rajesh Kumar Mehta". */
+function itemLabel(data: JudicialCaseDetail, tab: Tab, index: number): string {
+  const name = (v: unknown) => (v && typeof v === "object" && "name" in v && typeof (v as { name?: unknown }).name === "string" ? (v as { name: string }).name : "");
+  let list: unknown[] = [];
+  if (tab === "parties") list = [...(data.parties as unknown[] | undefined) ?? [], ...(data.accused as unknown[] | undefined) ?? []];
+  else if (tab === "witnesses") list = (data.witnesses as unknown[] | undefined) ?? [];
+  else if (tab === "evidence") list = (data.evidence as unknown[] | undefined) ?? [];
+  else if (tab === "chronology") list = (data.chronology as unknown[] | undefined) ?? [];
+  else if (tab === "research") list = (data.legal_provisions as unknown[] | undefined) ?? [];
+  const item = list[index];
+  if (!item) return `Item ${index + 1}`;
+  return name(item) || `Item ${index + 1}`;
+}
+
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -139,6 +223,16 @@ export default function CaseDetailPage() {
   const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
+
+  /* ─── User-defined quick access cards ─── */
+  const [cards, setCards] = useState<JudicialCaseCard[]>([]);
+  const [cardModalOpen, setCardModalOpen] = useState(false);
+  const [editingCard, setEditingCard] = useState<JudicialCaseCard | null>(null);
+  const [savingCard, setSavingCard] = useState(false);
+
+  /* Deep-link highlight: { tab, index } of an item to flash after jumping. */
+  const [highlight, setHighlight] = useState<{ tab: Tab; index: number; nonce: number } | null>(null);
+  const highlightNonce = useRef(0);
 
   /* Select a tab and bring its panel into view — `nearest` leaves the page
      alone when the panel is already on screen. */
@@ -209,19 +303,57 @@ export default function CaseDetailPage() {
     if (caseId) judicialCases.chatHistory(caseId).then(r => setChatMessages(r.data.map(m => ({ role: m.role, content: m.content })))).catch(() => {});
   }, [caseId]);
 
-  const doChat = async () => {
-    const q = chatInput.trim();
-    if (!q || chatLoading) return;
-    setChatInput("");
-    setChatMessages(p => [...p, { role: "user", content: q }]);
+  useEffect(() => {
+    if (caseId) judicialCases.listCards(caseId).then(r => setCards(r.data)).catch(() => {});
+  }, [caseId]);
+
+  const sendChatQuery = async (q: string) => {
+    const query = q.trim();
+    if (!query || chatLoading) return;
+    setChatMessages(p => [...p, { role: "user", content: query }]);
     setChatLoading(true);
     try {
-      const r = await judicialCases.chat(caseId, q);
+      const r = await judicialCases.chat(caseId, query);
       setChatMessages(p => [...p, { role: "assistant", content: r.data?.answer ?? "No response." }]);
     } catch {
       setChatMessages(p => [...p, { role: "assistant", content: "Failed to get response." }]);
     }
     setChatLoading(false);
+  };
+
+  const doChat = async () => {
+    const q = chatInput.trim();
+    if (!q || chatLoading) return;
+    setChatInput("");
+    await sendChatQuery(q);
+  };
+
+  /* Run a user-defined card: chat | tab | folio | item. */
+  const runCustomCard = (card: JudicialCaseCard) => {
+    const v = card.action_value;
+    switch (card.action_type) {
+      case "chat":
+        setChatOpen(true);
+        setChatInput(v.query ?? "");
+        sendChatQuery(v.query ?? "");
+        break;
+      case "tab":
+        goToTab((v.tab as Tab) ?? "overview");
+        break;
+      case "folio": {
+        const doc = documents.find((d) => d.id === v.docId);
+        if (!doc) {
+          toast("The document for this card no longer exists.", "error");
+          return;
+        }
+        openViewer(doc, v.page);
+        break;
+      }
+      case "item":
+        goToTab((v.tab as Tab) ?? "parties");
+        setHighlight({ tab: (v.tab as Tab) ?? "parties", index: v.index ?? 0, nonce: ++highlightNonce.current });
+        break;
+    }
   };
 
   const handleFiles = async (fileList: FileList | File[]) => {
@@ -287,8 +419,9 @@ export default function CaseDetailPage() {
   };
 
   /* Open a document in the inline viewer. The backend returns a short-lived
-     presigned URL, so we re-fetch it fresh each time the modal opens. */
-  const openViewer = async (doc: JudicialDocument) => {
+     presigned URL, so we re-fetch it fresh each time the modal opens. An
+     optional page appends #page=N so browser PDF viewers jump straight there. */
+  const openViewer = async (doc: JudicialDocument, page?: number) => {
     if (!doc.file_url) {
       toast("This document has no viewable file.", "error");
       return;
@@ -299,9 +432,10 @@ export default function CaseDetailPage() {
     try {
       const res = await judicialCases.get(caseId);
       const fresh = res.data.documents?.find((d) => d.id === doc.id);
-      setViewerUrl(fresh?.file_url ?? doc.file_url);
+      const base = fresh?.file_url ?? doc.file_url;
+      setViewerUrl(page ? `${base}#page=${page}` : base);
     } catch {
-      setViewerUrl(doc.file_url);
+      setViewerUrl(page ? `${doc.file_url}#page=${page}` : doc.file_url);
     } finally {
       setViewerLoading(false);
     }
@@ -321,6 +455,21 @@ export default function CaseDetailPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  /* Deep-link highlight: once the target tab renders, scroll to the item and
+     flash it, then clear the highlight shortly after. */
+  useEffect(() => {
+    if (!highlight) return;
+    const scrollTimer = setTimeout(() => {
+      const el = tabPanelRef.current?.querySelector(`[data-item-idx="${highlight.index}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 450);
+    const clearTimer = setTimeout(() => setHighlight(null), 2800);
+    return () => {
+      clearTimeout(scrollTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [highlight]);
+
   const handleDelete = async () => {
     const ok = await confirm({
       title: "Delete case",
@@ -336,6 +485,52 @@ export default function CaseDetailPage() {
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to delete case", "error");
       setDeleting(false);
+    }
+  };
+
+  /* Save (create or update) a user-defined card. */
+  const saveCard = async (input: {
+    label: string;
+    subtitle?: string;
+    action_type: JudicialCaseCard["action_type"];
+    action_value: JudicialCaseCard["action_value"];
+    icon: string;
+    color: string;
+  }) => {
+    setSavingCard(true);
+    try {
+      if (editingCard) {
+        const res = await judicialCases.updateCard(caseId, editingCard.id, input);
+        setCards((prev) => prev.map((c) => (c.id === editingCard.id ? res.data : c)));
+        toast("Card updated", "success");
+      } else {
+        const res = await judicialCases.createCard(caseId, { ...input, sort_order: cards.length });
+        setCards((prev) => [...prev, res.data]);
+        toast("Card created", "success");
+      }
+      setCardModalOpen(false);
+      setEditingCard(null);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to save card", "error");
+    } finally {
+      setSavingCard(false);
+    }
+  };
+
+  const deleteCard = async (card: JudicialCaseCard) => {
+    const ok = await confirm({
+      title: "Delete card",
+      message: `Remove "${card.label}" from this case?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      await judicialCases.deleteCard(caseId, card.id);
+      setCards((prev) => prev.filter((c) => c.id !== card.id));
+      toast("Card deleted", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete card", "error");
     }
   };
 
@@ -627,88 +822,6 @@ export default function CaseDetailPage() {
           </div>
         )}
 
-        {/* Quick analysis buttons — one-tap jumps to each section */}
-        {hasDocs && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5 sm:mb-6">
-            {[
-              {
-                tab: "overview" as Tab,
-                label: "Case Summary",
-                sub: "Brief & issues",
-                bg: "bg-tint text-navy",
-                icon: <path d="M4 5h16M4 10h16M4 15h10M4 20h7" />,
-              },
-              {
-                tab: "pages" as Tab,
-                label: "Important Pages",
-                sub: "Key folios",
-                bg: "bg-amber-bg text-amber-ink",
-                icon: <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />,
-              },
-              {
-                tab: "witnesses" as Tab,
-                label: "Witnesses",
-                sub: "Names & roles",
-                bg: "bg-tint text-navy",
-                icon: (
-                  <>
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </>
-                ),
-              },
-              {
-                tab: "police" as Tab,
-                label: "Police Station / IO",
-                sub: "Station & officer",
-                bg: "bg-tint text-navy",
-                icon: (
-                  <>
-                    <path d="M3 21h18" />
-                    <path d="M5 21V7l7-4 7 4v14" />
-                    <path d="M9 21v-4h6v4" />
-                  </>
-                ),
-              },
-            ].map((a) => (
-              <button
-                key={a.tab}
-                onClick={() => goToTab(a.tab)}
-                aria-current={activeTab === a.tab ? "true" : undefined}
-                className={`flex items-center gap-3 p-3 rounded-xl border-[1.5px] transition-all cursor-pointer ${
-                  activeTab === a.tab
-                    ? "border-navy bg-tint"
-                    : "border-sutra-line bg-white hover:border-navy hover:bg-tint"
-                }`}
-              >
-                <span className={`w-9 h-9 rounded-[10px] grid place-items-center flex-none ${a.bg}`}>
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="w-[19px] h-[19px]"
-                  >
-                    {a.icon}
-                  </svg>
-                </span>
-                <span className="min-w-0 text-left">
-                  <span className="block text-[13.5px] font-bold text-sutra-ink leading-tight">
-                    {a.label}
-                  </span>
-                  <span className="block text-[11.5px] text-sutra-ink-3 font-medium truncate">
-                    {a.sub}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Quick access + tabs */}
         {hasDocs && (
           <>
@@ -779,6 +892,76 @@ export default function CaseDetailPage() {
                       </span>
                     </button>
                   ))}
+
+                  {cards.map((c) => (
+                    <div key={c.id} className="relative group/card">
+                      <button
+                        onClick={() => runCustomCard(c)}
+                        className="relative flex flex-col items-center text-center p-3 rounded-xl border-[1.5px] transition-all cursor-pointer gap-1.5 w-full border-sutra-line bg-white hover:border-navy hover:bg-tint"
+                        title={`${c.label}${c.subtitle ? ` — ${c.subtitle}` : ""}`}
+                      >
+                        <span className={`w-9 h-9 rounded-[10px] grid place-items-center flex-none ${c.color ?? "bg-tint text-navy"}`}>
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="w-[19px] h-[19px]"
+                          >
+                            {CARD_ICONS[c.icon ?? "star"] ?? CARD_ICONS.star}
+                          </svg>
+                        </span>
+                        <span className="text-[13px] font-bold text-sutra-ink leading-tight">
+                          {c.label}
+                        </span>
+                        {c.subtitle && (
+                          <span className="text-[11px] text-sutra-ink-3 font-medium leading-tight max-[640px]:hidden">
+                            {c.subtitle}
+                          </span>
+                        )}
+                      </button>
+                      <div className="absolute -top-2 -right-2 flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingCard(c); setCardModalOpen(true); }}
+                          aria-label={`Edit ${c.label}`}
+                          className="w-7 h-7 rounded-full bg-white border border-sutra-line text-sutra-ink-2 hover:text-navy hover:border-navy grid place-items-center shadow-sm"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteCard(c); }}
+                          aria-label={`Delete ${c.label}`}
+                          className="w-7 h-7 rounded-full bg-white border border-sutra-line text-sutra-ink-2 hover:text-red-600 hover:border-red-300 grid place-items-center shadow-sm"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="w-3.5 h-3.5">
+                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={() => { setEditingCard(null); setCardModalOpen(true); }}
+                    className="flex flex-col items-center text-center p-3 rounded-xl border-[1.5px] transition-all cursor-pointer gap-1.5 border-dashed border-sutra-line-2 bg-[#FAFBFD] text-sutra-ink-3 hover:border-navy hover:text-navy hover:bg-tint"
+                  >
+                    <span className="w-9 h-9 rounded-[10px] grid place-items-center flex-none border border-dashed border-sutra-line-2 text-sutra-ink-3">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-[19px] h-[19px]">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                    </span>
+                    <span className="text-[13px] font-bold text-sutra-ink-3 leading-tight">
+                      My card
+                    </span>
+                    <span className="text-[11px] font-medium leading-tight max-[640px]:hidden">
+                      Make your own
+                    </span>
+                  </button>
                 </div>
               )}
             </div>
@@ -789,11 +972,36 @@ export default function CaseDetailPage() {
               className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 min-h-[240px] sm:min-h-[300px] [overflow-wrap:anywhere]"
             >
               {activeTab === "overview" && <OverviewTab data={caseData} />}
-              {activeTab === "parties" && <PartiesTab data={caseData} />}
-              {activeTab === "witnesses" && <WitnessesTab data={caseData} />}
-              {activeTab === "evidence" && <EvidenceTab data={caseData} />}
-              {activeTab === "chronology" && <ChronologyTab data={caseData} />}
-              {activeTab === "research" && <ResearchTab data={caseData} />}
+              {activeTab === "parties" && (
+                <PartiesTab
+                  data={caseData}
+                  highlightIndex={highlight?.tab === "parties" ? highlight.index : null}
+                />
+              )}
+              {activeTab === "witnesses" && (
+                <WitnessesTab
+                  data={caseData}
+                  highlightIndex={highlight?.tab === "witnesses" ? highlight.index : null}
+                />
+              )}
+              {activeTab === "evidence" && (
+                <EvidenceTab
+                  data={caseData}
+                  highlightIndex={highlight?.tab === "evidence" ? highlight.index : null}
+                />
+              )}
+              {activeTab === "chronology" && (
+                <ChronologyTab
+                  data={caseData}
+                  highlightIndex={highlight?.tab === "chronology" ? highlight.index : null}
+                />
+              )}
+              {activeTab === "research" && (
+                <ResearchTab
+                  data={caseData}
+                  highlightIndex={highlight?.tab === "research" ? highlight.index : null}
+                />
+              )}
               {activeTab === "pages" && (
                 <PagesTab caseId={caseId} documents={documents} importantPages={caseData.important_pages} />
               )}
@@ -895,6 +1103,23 @@ export default function CaseDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ═══ Create / edit custom card modal ═══ */}
+      {cardModalOpen && (
+        <CardModal
+          key={editingCard?.id ?? "new-card"}
+          open={cardModalOpen}
+          editing={editingCard}
+          data={caseData}
+          documents={documents}
+          onClose={() => {
+            setCardModalOpen(false);
+            setEditingCard(null);
+          }}
+          onSave={saveCard}
+          saving={savingCard}
+        />
+      )}
     </div>
   );
 }
@@ -960,7 +1185,7 @@ function OverviewTab({ data }: { data: JudicialCaseDetail }) {
   );
 }
 
-function PartiesTab({ data }: { data: JudicialCaseDetail }) {
+function PartiesTab({ data, highlightIndex }: { data: JudicialCaseDetail; highlightIndex?: number | null }) {
   const parties = (data.parties as any[]) || [];
   const accused = (data.accused as any[]) || [];
   if (!parties.length && !accused.length) {
@@ -973,7 +1198,7 @@ function PartiesTab({ data }: { data: JudicialCaseDetail }) {
           <h3 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-3">Parties</h3>
           <div className="space-y-2">
             {parties.map((p: any, i: number) => (
-              <div key={i} className="flex items-start gap-3 py-3 border-b border-sutra-line-2 last:border-0">
+              <div key={i} data-item-idx={i} className={`flex items-start gap-3 py-3 border-b border-sutra-line-2 last:border-0 rounded-lg ${i === highlightIndex ? "flash-item" : ""}`}>
                 <span className="flex-none w-8 h-8 rounded-full bg-tint-2 text-navy grid place-items-center font-bold text-[14px] border border-[#CFE0F0]">
                   {p.role?.[0] || "P"}
                 </span>
@@ -992,7 +1217,7 @@ function PartiesTab({ data }: { data: JudicialCaseDetail }) {
           <h3 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-3">Accused</h3>
           <div className="space-y-2">
             {accused.map((a: any, i: number) => (
-              <div key={i} className="flex items-start gap-3 py-3 border-b border-sutra-line-2 last:border-0">
+              <div key={i} data-item-idx={parties.length + i} className={`flex items-start gap-3 py-3 border-b border-sutra-line-2 last:border-0 rounded-lg ${parties.length + i === highlightIndex ? "flash-item" : ""}`}>
                 <span className="flex-none w-8 h-8 rounded-full bg-red-50 text-red-700 grid place-items-center font-bold text-[14px] border border-red-200">
                   A
                 </span>
@@ -1009,7 +1234,7 @@ function PartiesTab({ data }: { data: JudicialCaseDetail }) {
   );
 }
 
-function WitnessesTab({ data }: { data: JudicialCaseDetail }) {
+function WitnessesTab({ data, highlightIndex }: { data: JudicialCaseDetail; highlightIndex?: number | null }) {
   const witnesses = (data.witnesses as any[]) || [];
   if (!witnesses.length) {
     return <EmptyState title="No witnesses identified" desc="Run Analysis to extract witness names and statements." />;
@@ -1017,7 +1242,7 @@ function WitnessesTab({ data }: { data: JudicialCaseDetail }) {
   return (
     <div className="space-y-2">
       {witnesses.map((w: any, i: number) => (
-        <div key={i} className="flex items-start gap-3 py-3 border-b border-sutra-line-2 last:border-0">
+        <div key={i} data-item-idx={i} className={`flex items-start gap-3 py-3 border-b border-sutra-line-2 last:border-0 rounded-lg ${i === highlightIndex ? "flash-item" : ""}`}>
           <span className="flex-none w-8 h-8 rounded-full bg-tint text-navy grid place-items-center font-bold text-[14px] border border-tint-2">
             W
           </span>
@@ -1032,7 +1257,7 @@ function WitnessesTab({ data }: { data: JudicialCaseDetail }) {
   );
 }
 
-function EvidenceTab({ data }: { data: JudicialCaseDetail }) {
+function EvidenceTab({ data, highlightIndex }: { data: JudicialCaseDetail; highlightIndex?: number | null }) {
   const evidence = (data.evidence as any[]) || [];
   if (!evidence.length) {
     return <EmptyState title="No evidence mapped" desc="Run Analysis to classify and map evidence from your documents." />;
@@ -1040,7 +1265,7 @@ function EvidenceTab({ data }: { data: JudicialCaseDetail }) {
   return (
     <div className="space-y-2">
       {evidence.map((e: any, i: number) => (
-        <div key={i} className="flex items-start gap-3 py-3 border-b border-sutra-line-2 last:border-0">
+        <div key={i} data-item-idx={i} className={`flex items-start gap-3 py-3 border-b border-sutra-line-2 last:border-0 rounded-lg ${i === highlightIndex ? "flash-item" : ""}`}>
           <span className="flex-none w-8 h-8 rounded-full bg-amber-bg text-amber-ink grid place-items-center font-bold text-[14px] border border-amber-200">
             E
           </span>
@@ -1055,7 +1280,7 @@ function EvidenceTab({ data }: { data: JudicialCaseDetail }) {
   );
 }
 
-function ChronologyTab({ data }: { data: JudicialCaseDetail }) {
+function ChronologyTab({ data, highlightIndex }: { data: JudicialCaseDetail; highlightIndex?: number | null }) {
   const chronology = (data.chronology as any[]) || [];
   if (!chronology.length) {
     return <EmptyState title="No chronology yet" desc="Run Analysis to build a timeline from the case events." />;
@@ -1064,7 +1289,7 @@ function ChronologyTab({ data }: { data: JudicialCaseDetail }) {
     <div className="relative pl-6">
       <div className="absolute left-[13px] top-2 bottom-2 w-0.5 bg-sutra-line" />
       {chronology.map((c: any, i: number) => (
-        <div key={i} className="relative mb-6 last:mb-0">
+        <div key={i} data-item-idx={i} className={`relative mb-6 last:mb-0 rounded-lg ${i === highlightIndex ? "flash-item" : ""}`}>
           <div className="absolute -left-4 top-1.5 w-3 h-3 rounded-full bg-navy border-2 border-white" />
           <span className="text-[12px] font-bold text-sutra-ink-3 uppercase tracking-wider">{c.date || c.stage || ""}</span>
           <p className="text-[15px] text-sutra-ink mt-1 leading-relaxed">{c.event || c.description || ""}</p>
@@ -1075,7 +1300,7 @@ function ChronologyTab({ data }: { data: JudicialCaseDetail }) {
   );
 }
 
-function ResearchTab({ data }: { data: JudicialCaseDetail }) {
+function ResearchTab({ data, highlightIndex }: { data: JudicialCaseDetail; highlightIndex?: number | null }) {
   const provisions = (data.legal_provisions as any[]) || [];
   if (!provisions.length) {
     return <EmptyState title="No legal research yet" desc="Run Analysis to identify relevant acts, sections, and precedents." />;
@@ -1083,7 +1308,7 @@ function ResearchTab({ data }: { data: JudicialCaseDetail }) {
   return (
     <div className="space-y-3">
       {provisions.map((p: any, i: number) => (
-        <div key={i} className="py-3 border-b border-sutra-line-2 last:border-0">
+        <div key={i} data-item-idx={i} className={`py-3 border-b border-sutra-line-2 last:border-0 rounded-lg ${i === highlightIndex ? "flash-item" : ""}`}>
           <b className="text-[15px] text-navy">{p.act || p.title || ""}</b>
           {p.section && <span className="text-[14px] text-sutra-ink-2 ml-2">§ {p.section}</span>}
           {p.description && <p className="text-[14px] text-sutra-ink-2 mt-1">{p.description}</p>}
@@ -1462,6 +1687,372 @@ function PoliceTab({ data }: { data: JudicialCaseDetail }) {
               <b className="text-[14px]">{value || "—"}</b>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Create / edit custom card modal ─── */
+
+interface CardModalProps {
+  open: boolean;
+  editing: JudicialCaseCard | null;
+  data: JudicialCaseDetail;
+  documents: JudicialDocument[];
+  onClose: () => void;
+  onSave: (input: {
+    label: string;
+    subtitle?: string;
+    action_type: JudicialCaseCard["action_type"];
+    action_value: JudicialCaseCard["action_value"];
+    icon: string;
+    color: string;
+  }) => void;
+  saving: boolean;
+}
+
+const ACTION_TYPES: { value: JudicialCaseCard["action_type"]; label: string; desc: string }[] = [
+  { value: "chat", label: "Saved AI query", desc: "Runs a question in the Case Assistant" },
+  { value: "tab", label: "Jump to section", desc: "Opens a case section tab" },
+  { value: "folio", label: "Open a folio", desc: "Opens a document at a page" },
+  { value: "item", label: "Deep-link to an item", desc: "Jumps to a party / witness / evidence" },
+];
+
+/* Tabs that expose selectable items for the "item" action. */
+const ITEM_TABS: Tab[] = ["parties", "witnesses", "evidence", "chronology", "research"];
+
+function CardModal({ open, editing, data, documents, onClose, onSave, saving }: CardModalProps) {
+  const [label, setLabel] = useState(editing?.label ?? "");
+  const [subtitle, setSubtitle] = useState(editing?.subtitle ?? "");
+  const [icon, setIcon] = useState(editing?.icon ?? "star");
+  const [color, setColor] = useState(editing?.color ?? "bg-tint text-navy");
+  const [actionType, setActionType] = useState<JudicialCaseCard["action_type"]>(
+    editing?.action_type ?? "chat"
+  );
+  const [query, setQuery] = useState(editing?.action_value?.query ?? "");
+  const [tab, setTab] = useState<Tab>(
+    (editing?.action_value?.tab as Tab) ?? "overview"
+  );
+  const [docId, setDocId] = useState(editing?.action_value?.docId ?? "");
+  const [page, setPage] = useState(editing?.action_value?.page ?? 1);
+  const [itemTab, setItemTab] = useState<Tab>(
+    (editing?.action_type === "item" ? (editing?.action_value?.tab as Tab) : null) ?? "parties"
+  );
+  const [itemIndex, setItemIndex] = useState(editing?.action_value?.index ?? 0);
+
+  if (!open) return null;
+
+  const itemOptions = (() => {
+    const list: unknown[] =
+      itemTab === "parties"
+        ? [...(data.parties as unknown[] | undefined) ?? [], ...(data.accused as unknown[] | undefined) ?? []]
+        : itemTab === "witnesses"
+        ? (data.witnesses as unknown[] | undefined) ?? []
+        : itemTab === "evidence"
+        ? (data.evidence as unknown[] | undefined) ?? []
+        : itemTab === "chronology"
+        ? (data.chronology as unknown[] | undefined) ?? []
+        : (data.legal_provisions as unknown[] | undefined) ?? [];
+    return list.map((_, i) => ({ index: i, label: itemLabel(data, itemTab, i) }));
+  })();
+
+  const selectedDoc = documents.find((d) => d.id === docId);
+  const pageMax = selectedDoc?.page_count || 1;
+
+  const valid =
+    label.trim().length > 0 &&
+    (actionType !== "chat" || query.trim().length > 0) &&
+    (actionType !== "folio" || docId !== "") &&
+    (actionType !== "item" || itemOptions.length > 0);
+
+  const submit = () => {
+    if (!valid || saving) return;
+    let actionValue: JudicialCaseCard["action_value"];
+    switch (actionType) {
+      case "chat":
+        actionValue = { query: query.trim() };
+        break;
+      case "tab":
+        actionValue = { tab };
+        break;
+      case "folio":
+        actionValue = { docId, page };
+        break;
+      case "item":
+        actionValue = { tab: itemTab, index: itemIndex };
+        break;
+    }
+    onSave({
+      label: label.trim(),
+      subtitle: subtitle.trim() || undefined,
+      action_type: actionType,
+      action_value: actionValue,
+      icon,
+      color,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in"
+        onClick={onClose}
+      />
+      <div className="relative bg-white rounded-2xl shadow-xl border border-sutra-line w-full max-w-lg animate-in flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-sutra-line flex-none">
+          <div>
+            <h3 className="text-[17px] font-bold text-sutra-ink">
+              {editing ? "Edit card" : "Make your own card"}
+            </h3>
+            <p className="text-[12.5px] text-sutra-ink-3">
+              A shortcut for anything you do with this case.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="w-8 h-8 rounded-lg grid place-items-center hover:bg-tint transition-colors text-sutra-ink-3"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Name */}
+          <div className="space-y-1.5">
+            <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+              Name
+            </label>
+            <input
+              autoFocus
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="e.g. Bail conditions"
+              maxLength={120}
+              className="w-full min-h-[42px] border border-sutra-line rounded-xl px-3.5 font-[inherit] text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3"
+            />
+          </div>
+
+          {/* Subtitle */}
+          <div className="space-y-1.5">
+            <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+              Subtitle <span className="normal-case font-medium text-sutra-ink-3/70">(optional)</span>
+            </label>
+            <input
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              placeholder="e.g. Key arrest terms"
+              maxLength={255}
+              className="w-full min-h-[42px] border border-sutra-line rounded-xl px-3.5 font-[inherit] text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3"
+            />
+          </div>
+
+          {/* Action type */}
+          <div className="space-y-1.5">
+            <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+              What it does
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {ACTION_TYPES.map((a) => (
+                <button
+                  key={a.value}
+                  onClick={() => setActionType(a.value)}
+                  className={`text-left p-3 rounded-xl border-[1.5px] transition-all cursor-pointer ${
+                    actionType === a.value
+                      ? "border-navy bg-tint"
+                      : "border-sutra-line bg-white hover:border-navy hover:bg-tint"
+                  }`}
+                >
+                  <span className="block text-[13.5px] font-bold text-sutra-ink leading-tight">
+                    {a.label}
+                  </span>
+                  <span className="block text-[11.5px] text-sutra-ink-3 font-medium leading-snug mt-0.5">
+                    {a.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Action-specific fields */}
+          {actionType === "chat" && (
+            <div className="space-y-1.5">
+              <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+                Question to ask
+              </label>
+              <textarea
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                rows={3}
+                placeholder="e.g. Summarise the bail conditions mentioned in the charge sheet"
+                className="w-full border border-sutra-line rounded-xl px-3.5 py-3 font-[inherit] text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3 resize-y"
+              />
+            </div>
+          )}
+
+          {actionType === "tab" && (
+            <div className="space-y-1.5">
+              <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+                Section
+              </label>
+              <select
+                value={tab}
+                onChange={(e) => setTab(e.target.value as Tab)}
+                className="w-full min-h-[42px] border border-sutra-line rounded-xl px-3 font-[inherit] text-[14px] text-sutra-ink outline-none focus:border-navy transition-colors bg-white"
+              >
+                {TAB_OPTIONS.map((t) => (
+                  <option key={t.tab} value={t.tab}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {actionType === "folio" && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+                  Document
+                </label>
+                <select
+                  value={docId}
+                  onChange={(e) => { setDocId(e.target.value); setPage(1); }}
+                  className="w-full min-h-[42px] border border-sutra-line rounded-xl px-3 font-[inherit] text-[14px] text-sutra-ink outline-none focus:border-navy transition-colors bg-white"
+                >
+                  <option value="">Select a document…</option>
+                  {documents.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.original_filename}
+                      {d.page_count ? ` (${d.page_count}p)` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {docId && (
+                <div className="space-y-1.5">
+                  <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+                    Page
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={pageMax}
+                    value={page}
+                    onChange={(e) => setPage(Math.max(1, Math.min(pageMax, Number(e.target.value) || 1)))}
+                    className="w-full min-h-[42px] border border-sutra-line rounded-xl px-3.5 font-[inherit] text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {actionType === "item" && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+                  Section
+                </label>
+                <select
+                  value={itemTab}
+                  onChange={(e) => { setItemTab(e.target.value as Tab); setItemIndex(0); }}
+                  className="w-full min-h-[42px] border border-sutra-line rounded-xl px-3 font-[inherit] text-[14px] text-sutra-ink outline-none focus:border-navy transition-colors bg-white"
+                >
+                  {TAB_OPTIONS.filter((t) => ITEM_TABS.includes(t.tab)).map((t) => (
+                    <option key={t.tab} value={t.tab}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+                  Item
+                </label>
+                <select
+                  value={itemIndex}
+                  onChange={(e) => setItemIndex(Number(e.target.value))}
+                  disabled={itemOptions.length === 0}
+                  className="w-full min-h-[42px] border border-sutra-line rounded-xl px-3 font-[inherit] text-[14px] text-sutra-ink outline-none focus:border-navy transition-colors bg-white disabled:opacity-50"
+                >
+                  {itemOptions.length === 0 ? (
+                    <option value={0}>No items in this section yet</option>
+                  ) : (
+                    itemOptions.map((o) => (
+                      <option key={o.index} value={o.index}>{o.label}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Icon */}
+          <div className="space-y-1.5">
+            <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+              Icon
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {Object.keys(CARD_ICONS).map((name) => (
+                <button
+                  key={name}
+                  onClick={() => setIcon(name)}
+                  aria-label={`Icon ${name}`}
+                  className={`w-10 h-10 rounded-[10px] grid place-items-center transition-all cursor-pointer ${
+                    icon === name
+                      ? "bg-tint text-navy border-[1.5px] border-navy"
+                      : "bg-[#F4F6F8] text-sutra-ink-3 border-[1.5px] border-transparent hover:border-sutra-line-2"
+                  }`}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+                    {CARD_ICONS[name]}
+                  </svg>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Color */}
+          <div className="space-y-1.5">
+            <label className="block text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
+              Colour
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {CARD_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => setColor(c.value)}
+                  title={c.label}
+                  aria-label={`Colour ${c.label}`}
+                  className={`w-10 h-10 rounded-[10px] grid place-items-center transition-all cursor-pointer ${c.swatch} ${
+                    color === c.value ? "ring-2 ring-navy ring-offset-2" : "ring-1 ring-sutra-line"
+                  }`}
+                >
+                  {color === c.value && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2.5 px-5 py-4 border-t border-sutra-line flex-none">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-[13px] font-semibold text-sutra-ink border border-sutra-line hover:bg-tint transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!valid || saving}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-navy transition-colors hover:bg-navy-dark disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving && <Spinner className="w-3.5 h-3.5" />}
+            {editing ? "Save changes" : "Create card"}
+          </button>
         </div>
       </div>
     </div>
