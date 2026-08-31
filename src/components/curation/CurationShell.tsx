@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { canCurate, canUpload, isCorpusRole } from "@/lib/corpus-roles";
 import Logo from "@/components/Logo";
+import ImpersonationBanner from "@/components/ImpersonationBanner";
 
 /**
  * Curation Panel shell.
@@ -115,6 +116,7 @@ export default function CurationShell({
   return (
     <div className="min-h-screen bg-sutra-bg">
       <header className="sticky top-0 z-30 bg-white border-b border-sutra-line">
+        <ImpersonationBanner />
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-[4.5rem] gap-4">
             <div className="flex items-center gap-3 min-w-0">

@@ -82,6 +82,7 @@ function handleUnauthorized() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
+  localStorage.removeItem("impersonator");
   window.location.href = "/login";
 }
 
@@ -104,6 +105,8 @@ export interface AuthTokens {
     role: string;
     whatsapp_number?: string;
   };
+  /** The real account behind an impersonated session (absent when clean). */
+  impersonated_by?: { id: number; email: string } | null;
 }
 
 export const auth = {
@@ -124,6 +127,11 @@ export const auth = {
 
   timeout: () =>
     request("/api/v1/auth/timeout", { method: "POST" }),
+
+  stopImpersonation: () =>
+    request<{ success: boolean; data: AuthTokens }>("/api/v1/auth/stop-impersonation", {
+      method: "POST",
+    }),
 
   refreshToken: (refreshToken: string) =>
     request<{ success: boolean; data: AuthTokens }>(
@@ -931,6 +939,12 @@ export const admin = {
       json: { role },
     }),
 
+  /** Sign in as another account. Returns tokens for the target session. */
+  impersonate: (userId: number) =>
+    request<{ success: boolean; data: AuthTokens }>(`/api/v1/admin/users/${userId}/impersonate`, {
+      method: "POST",
+    }),
+
   createUser: (data: { email: string; password: string; role: string }) =>
     request<{ success: boolean; data: AdminUser }>("/api/v1/auth/register", {
       method: "POST",
@@ -1116,17 +1130,34 @@ export const admin = {
   comprehensiveStats: () =>
     request<{ success: boolean; data: Record<string, unknown> }>("/api/v1/admin/stats/comprehensive"),
 
-  auditLogs: (params: { limit?: number; offset?: number; search?: string; user_id?: number } = {}) => {
+  auditLogs: (params: { limit?: number; offset?: number; search?: string; user_id?: number; action?: string; impersonated_by?: number } = {}) => {
     const qs = new URLSearchParams();
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.offset !== undefined) qs.set("offset", String(params.offset));
     if (params.search) qs.set("q", params.search);
     if (params.user_id !== undefined) qs.set("user_id", String(params.user_id));
+    if (params.action) qs.set("action", params.action);
+    if (params.impersonated_by !== undefined) qs.set("impersonated_by", String(params.impersonated_by));
     const s = qs.toString();
     return request<{ success: boolean; data: { data: AdminAuditLog[]; total: number } }>(
       `/api/v1/admin/audit-logs${s ? `?${s}` : ""}`
     );
   },
+
+  /** Live server health + uptime. */
+  systemStatus: () =>
+    request<{
+      success: boolean;
+      data: {
+        uptime_seconds: number;
+        started_at: string;
+        pid: number;
+        node_env: string;
+        node_version: string;
+        platform: string;
+        arch: string;
+      };
+    }>("/api/v1/admin/system/status"),
 };
 
 /* ------------------------------------------------------------------ */

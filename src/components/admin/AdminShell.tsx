@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import Logo from "@/components/Logo";
+import ImpersonationBanner from "@/components/ImpersonationBanner";
 
 export const ADMIN_NAV: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -156,8 +157,10 @@ export default function AdminShell({ children }: { children: ReactNode }) {
 
       {/* Main */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Top header — role-based panel title + user */}
-        <header className="sticky top-0 z-30 bg-white border-b border-sutra-line flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-3">
+        {/* Top header — role-based panel title + user, impersonation strip on top when active */}
+        <header className="sticky top-0 z-30 bg-white border-b border-sutra-line">
+          <ImpersonationBanner />
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={() => setMobileOpen(true)}
@@ -195,6 +198,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 </span>
               </Link>
             )}
+          </div>
           </div>
         </header>
 

@@ -2,12 +2,57 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { admin, type AdminAuditLog } from "@/lib/api";
-import { PageHeader, SearchInput, EmptyState, ErrorState, Pagination } from "@/components/admin/ui";
+import {
+  PageHeader,
+  SearchInput,
+  FilterSelect,
+  EmptyState,
+  ErrorState,
+  Pagination,
+} from "@/components/admin/ui";
 
 const PAGE_SIZE = 20;
 
 const fmtTime = (d?: string) =>
   d ? new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+
+/** Actions shown in the filter dropdown — the high-signal ones. */
+const ACTION_OPTIONS = [
+  { value: "USER_LOGIN", label: "Login" },
+  { value: "USER_LOGOUT", label: "Logout" },
+  { value: "USER_REGISTER", label: "Register" },
+  { value: "SESSION_TIMEOUT", label: "Session timeout" },
+  { value: "IMPERSONATE_START", label: "Impersonate start" },
+  { value: "IMPERSONATE_END", label: "Impersonate end" },
+  { value: "SYSTEM_BOOT", label: "System boot" },
+  { value: "SYSTEM_SHUTDOWN", label: "System shutdown" },
+  { value: "CASE_CREATED", label: "Case created" },
+  { value: "CASE_UPDATED", label: "Case updated" },
+  { value: "DOCUMENT_UPLOADED", label: "Document uploaded" },
+  { value: "SUBSCRIPTION_CREATED", label: "Subscription created" },
+  { value: "ADMIN_ACTION", label: "Admin action" },
+];
+
+const fmtUptime = (s: number) => {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  const parts: string[] = [];
+  if (h) parts.push(`${h}h`);
+  if (m || h) parts.push(`${m}m`);
+  parts.push(`${sec}s`);
+  return parts.join(" ");
+};
+
+interface SystemStatus {
+  uptime_seconds: number;
+  started_at: string;
+  pid: number;
+  node_env: string;
+  node_version: string;
+  platform: string;
+  arch: string;
+}
 
 export default function AdminActivityLogsPage() {
   const [logs, setLogs] = useState<AdminAuditLog[]>([]);
@@ -16,12 +61,32 @@ export default function AdminActivityLogsPage() {
   const [loadError, setLoadError] = useState("");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [action, setAction] = useState("");
   const [viewLog, setViewLog] = useState<AdminAuditLog | null>(null);
+
+  // Live server health — refreshed every 30s.
+  const [sys, setSys] = useState<SystemStatus | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      admin
+        .systemStatus()
+        .then((r) => { if (alive) setSys(r.data); })
+        .catch(() => undefined);
+    load();
+    const t = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   const fetchLogs = useCallback(() => {
     setLoading(true);
     admin
-      .auditLogs({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, search: search || undefined })
+      .auditLogs({
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+        search: search || undefined,
+        action: action || undefined,
+      })
       .then((r) => {
         setLogs(r.data.data);
         setTotal(r.data.total);
@@ -32,7 +97,7 @@ export default function AdminActivityLogsPage() {
         setLoadError(e instanceof Error ? e.message : "Failed to load activity");
       })
       .finally(() => setLoading(false));
-  }, [page, search]);
+  }, [page, search, action]);
 
   useEffect(() => {
     fetchLogs();
@@ -79,12 +144,63 @@ export default function AdminActivityLogsPage() {
     return String(v);
   };
 
+  /** Real account behind an impersonated-session action, if present. */
+  const impersonatedBy = (a: AdminAuditLog): string | null => {
+    const d = a.details;
+    if (d && typeof d === "object" && !Array.isArray(d)) {
+      const imp = (d as Record<string, unknown>).impersonated_by;
+      if (imp && typeof imp === "object") {
+        const e = (imp as { email?: string }).email;
+        if (e) return e;
+        const id = (imp as { id?: number }).id;
+        if (id) return `#${id}`;
+      }
+    }
+    return null;
+  };
+
+  const isSystem = (a: AdminAuditLog) => a.action?.startsWith("SYSTEM_");
+
   return (
     <div>
       <PageHeader title="Activity Logs" subtitle={`${total.toLocaleString()} recorded actions`} />
 
+      {/* Server health / uptime card */}
+      <div className="mb-6 bg-white border border-sutra-line rounded-xl px-5 py-4 flex flex-wrap items-center gap-x-8 gap-y-3">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-green-dot animate-pulse" aria-hidden />
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Server up</p>
+            <p className="text-[16px] font-bold text-sutra-ink font-mono">{sys ? fmtUptime(sys.uptime_seconds) : "…"}</p>
+          </div>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Started</p>
+          <p className="text-[13px] font-semibold text-sutra-ink">{sys ? fmtTime(sys.started_at) : "…"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Node</p>
+          <p className="text-[13px] font-semibold text-sutra-ink font-mono">{sys?.node_version ?? "…"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Env</p>
+          <p className="text-[13px] font-semibold text-sutra-ink capitalize">{sys?.node_env ?? "…"}</p>
+        </div>
+        <div className="hidden md:block">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">PID</p>
+          <p className="text-[13px] font-semibold text-sutra-ink font-mono">{sys?.pid ?? "…"}</p>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search action, user or case id..." className="flex-1 min-w-[200px]" />
+        <FilterSelect
+          value={action}
+          onChange={(v) => { setAction(v); setPage(1); }}
+          options={ACTION_OPTIONS}
+          allLabel="All actions"
+          className="min-w-[180px]"
+        />
       </div>
 
       {loading ? (
@@ -98,7 +214,7 @@ export default function AdminActivityLogsPage() {
       ) : loadError ? (
         <ErrorState title="Couldn't load activity" message={loadError} onRetry={fetchLogs} />
       ) : logs.length === 0 ? (
-        <EmptyState title="No activity found" description="Try adjusting your search" />
+        <EmptyState title="No activity found" description="Try adjusting your search or filter" />
       ) : (
         <div className="bg-white border border-sutra-line rounded-xl overflow-x-auto">
           <table className="w-full min-w-[820px]">
@@ -113,31 +229,56 @@ export default function AdminActivityLogsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-sutra-line-2">
-              {logs.map((a) => (
-                <tr key={a.id} className="hover:bg-sutra-bg/40 transition-colors">
-                  <td className="px-4 py-3.5 text-[12px] font-bold text-navy">#{a.id}</td>
-                  <td className="px-4 py-3.5">
-                    <span className="text-[12px] font-semibold px-2 py-0.5 rounded-md bg-tint text-navy whitespace-nowrap">
-                      {a.action ?? "—"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-[12.5px] text-sutra-ink-2 max-w-[380px]">
-                    <p className="truncate font-mono text-[11.5px]">{renderCompact(a).slice(0, 200) || "—"}</p>
-                  </td>
-                  <td className="px-4 py-3.5 text-[12.5px] text-sutra-ink-2 truncate max-w-[180px]">{a.user?.email ?? "—"}</td>
-                  <td className="px-4 py-3.5 text-[12px] text-sutra-ink-3 whitespace-nowrap">{fmtTime(a.created_at)}</td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center justify-end">
-                      <button
-                        onClick={() => setViewLog(a)}
-                        className="h-8 px-3 rounded-lg border border-navy bg-white text-navy text-[12px] font-bold inline-flex items-center hover:bg-navy hover:text-white transition-colors"
+              {logs.map((a) => {
+                const imp = impersonatedBy(a);
+                const system = isSystem(a);
+                return (
+                  <tr key={a.id} className="hover:bg-sutra-bg/40 transition-colors">
+                    <td className="px-4 py-3.5 text-[12px] font-bold text-navy">#{a.id}</td>
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`text-[12px] font-semibold px-2 py-0.5 rounded-md whitespace-nowrap ${
+                          system
+                            ? "bg-sutra-bg text-sutra-ink-3 border border-sutra-line"
+                            : a.action?.startsWith("IMPERSONATE_")
+                              ? "bg-amber-bg text-amber-ink"
+                              : "bg-tint text-navy"
+                        }`}
                       >
-                        View
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {a.action ?? "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-[12.5px] text-sutra-ink-2 max-w-[380px]">
+                      <p className="truncate font-mono text-[11.5px]">{renderCompact(a).slice(0, 200) || "—"}</p>
+                    </td>
+                    <td className="px-4 py-3.5 text-[12.5px] text-sutra-ink-2 truncate max-w-[220px]">
+                      {system ? (
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">System</span>
+                      ) : (
+                        <div className="min-w-0">
+                          <p className="truncate">{a.user?.email ?? "—"}</p>
+                          {imp && (
+                            <p className="text-[11px] font-semibold text-amber-ink truncate" title={`Impersonated by ${imp}`}>
+                              via {imp}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-[12px] text-sutra-ink-3 whitespace-nowrap">{fmtTime(a.created_at)}</td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-end">
+                        <button
+                          onClick={() => setViewLog(a)}
+                          className="h-8 px-3 rounded-lg border border-navy bg-white text-navy text-[12px] font-bold inline-flex items-center hover:bg-navy hover:text-white transition-colors"
+                        >
+                          View
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -170,6 +311,9 @@ export default function AdminActivityLogsPage() {
                 <div>
                   <p className="text-[10.5px] font-bold uppercase tracking-wider text-sutra-ink-3 mb-1">User</p>
                   <p className="text-[13.5px] font-semibold text-sutra-ink">{viewLog.user?.email ?? (viewLog.user_id ? `#${viewLog.user_id}` : "—")}</p>
+                  {impersonatedBy(viewLog) && (
+                    <p className="text-[12px] font-semibold text-amber-ink mt-0.5">via {impersonatedBy(viewLog)}</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10.5px] font-bold uppercase tracking-wider text-sutra-ink-3 mb-1">Timestamp</p>

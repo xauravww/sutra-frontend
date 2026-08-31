@@ -35,7 +35,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function AdminUsersPage() {
-  const { user: me } = useAuth();
+  const { user: me, impersonateAs } = useAuth();
   const { toast, confirm } = useNotify();
   const isOwner = me?.role === "owner";
 
@@ -128,6 +128,26 @@ export default function AdminUsersPage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : "Role update failed", "error");
     } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Sign in as another account. Same tier rule as canManage (owner: everyone;
+  // admin: below their tier) plus a self-check. Server audits every session.
+  const impersonate = async (u: AdminUser) => {
+    const ok = await confirm({
+      title: `Impersonate ${u.email}`,
+      message: `You are about to sign in as ${u.email} (${u.role.replace(/_/g, " ")}). Every action taken in this session is logged against your account. Continue?`,
+      confirmLabel: "Impersonate",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setBusyId(u.id);
+    try {
+      // On success impersonateAs hard-redirects to the target's home page.
+      await impersonateAs(u.id);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Impersonation failed", "error");
       setBusyId(null);
     }
   };
@@ -312,6 +332,16 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center justify-end gap-2">
+                      {me && u.id !== me.id && canManage(u.role) && (
+                        <button
+                          onClick={() => impersonate(u)}
+                          disabled={busyId === u.id}
+                          title="Sign in as this user (logged)"
+                          className="h-8 px-3 rounded-lg text-[12px] font-semibold border border-amber-dot/50 bg-amber-bg text-amber-ink hover:brightness-95 transition-colors disabled:opacity-50"
+                        >
+                          Impersonate
+                        </button>
+                      )}
                       {canManage(u.role) && (
                         <button
                           onClick={() => toggleStatus(u)}

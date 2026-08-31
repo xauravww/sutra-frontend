@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import Logo from "@/components/Logo";
+import ImpersonationBanner from "@/components/ImpersonationBanner";
 
 export default function TopBar() {
   const { user, logout } = useAuth();
@@ -24,6 +25,7 @@ export default function TopBar() {
 
   return (
     <header className="bg-white border-b border-sutra-line sticky top-0 z-20">
+      <ImpersonationBanner />
       <div className="max-w-[940px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
         <Link href={home} className="flex items-center no-underline flex-none">
           <Logo />
