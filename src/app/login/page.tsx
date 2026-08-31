@@ -4,17 +4,11 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import Input from "@/components/ui/Input";
 import PasswordInput from "@/components/ui/PasswordInput";
-import Radio from "@/components/ui/Radio";
 import Button from "@/components/ui/Button";
-import { useLoginForm, type LoginRole } from "@/hooks/useLoginForm";
-
-const ROLES: { value: LoginRole; label: string }[] = [
-  { value: "legal_practitioner", label: "Legal Practitioner" },
-  { value: "judiciary", label: "Honourable Judiciary" },
-];
+import { useLoginForm } from "@/hooks/useLoginForm";
 
 export default function LoginPage() {
-  const { role, setRole, email, setEmail, password, setPassword, error, loading, submit } =
+  const { email, setEmail, password, setPassword, error, loading, submit } =
     useLoginForm();
 
   return (
@@ -28,26 +22,10 @@ export default function LoginPage() {
           onSubmit={submit}
           className="w-full max-w-[380px] rounded-xl border border-sutra-line bg-white p-5 sm:p-7"
         >
-          <fieldset>
-            <legend className="text-[13px] font-semibold text-sutra-ink-2 mb-2">I Am</legend>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 mb-2">
-              {ROLES.map((r) => (
-                <Radio
-                  key={r.value}
-                  name="role"
-                  value={r.value}
-                  label={r.label}
-                  checked={role === r.value}
-                  onChange={(v) => setRole(v as LoginRole)}
-                />
-              ))}
-            </div>
-            <p className="text-[11px] text-sutra-ink-3 mb-5">
-              {role === "judiciary"
-                ? "Judicial Case Intelligence — upload & analyze case files"
-                : "Mediation Sessions — facilitate party negotiations"}
-            </p>
-          </fieldset>
+          <h1 className="text-[17px] font-bold text-sutra-ink mb-1">Sign in</h1>
+          <p className="text-[12.5px] text-sutra-ink-3 mb-5">
+            We&apos;ll take you straight to your portal.
+          </p>
 
           <div className="mb-4">
             <Input

@@ -9,11 +9,23 @@ export default function TopBar() {
 
   const isJudiciary = user?.role === "judiciary";
   const isPractitioner = user?.role === "legal_practitioner";
+  const isAdmin = user?.role === "admin" || user?.role === "owner";
+  const isCorpus = user?.role === "corpus_researcher" || user?.role === "corpus_curator";
+
+  const home = isJudiciary
+    ? "/cases"
+    : isPractitioner
+      ? "/mediation"
+      : isAdmin
+        ? "/admin"
+        : isCorpus
+          ? "/curation"
+          : "/workspace";
 
   return (
     <header className="bg-white border-b border-sutra-line sticky top-0 z-20">
       <div className="max-w-[940px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
-        <Link href={isJudiciary ? "/cases" : isPractitioner ? "/mediation" : "/workspace"} className="flex items-center no-underline flex-none">
+        <Link href={home} className="flex items-center no-underline flex-none">
           <Logo />
         </Link>
 
@@ -26,6 +38,16 @@ export default function TopBar() {
           {isPractitioner && (
             <Link href="/mediation" className="hidden sm:inline-block text-sm font-semibold text-sutra-ink-2 hover:text-navy px-3 py-2 rounded-lg transition-colors">
               Mediation
+            </Link>
+          )}
+          {isAdmin && (
+            <Link href="/admin" className="hidden sm:inline-block text-sm font-semibold text-sutra-ink-2 hover:text-navy px-3 py-2 rounded-lg transition-colors">
+              Admin
+            </Link>
+          )}
+          {isCorpus && (
+            <Link href="/curation" className="hidden sm:inline-block text-sm font-semibold text-sutra-ink-2 hover:text-navy px-3 py-2 rounded-lg transition-colors">
+              Corpus
             </Link>
           )}
 

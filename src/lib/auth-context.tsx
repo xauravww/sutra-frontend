@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { auth, type AuthTokens } from "./api";
+import { auth, systemSettings } from "./api";
 
 interface User {
   id: number;
@@ -21,11 +21,9 @@ const AuthContext = createContext<AuthCtx | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   // Hydrate from localStorage on mount (client only)
   useEffect(() => {
-    setMounted(true);
     try {
       const raw = localStorage.getItem("user");
       if (raw) setUser(JSON.parse(raw));
@@ -57,6 +55,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.location.href = "/login";
     }
   }, []);
+
+  // Idle session timeout — any logged-in user is signed out after
+  // `session_timeout_minutes` of inactivity (0/absent = never).
+  useEffect(() => {
+    if (!user) return;
+
+    let minutes = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let disposed = false;
+
+    const arm = () => {
+      if (timer) clearTimeout(timer);
+      if (minutes <= 0) return;
+      timer = setTimeout(() => {
+        if (disposed) return;
+        // Record the inactivity timeout in the audit log, then sign out.
+        auth.timeout().catch(() => undefined);
+        logout();
+      }, minutes * 60 * 1000);
+    };
+
+    const events = ["pointerdown", "keydown", "wheel", "touchstart", "scroll"];
+    const reset = arm;
+    const bind = () => events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    const unbind = () => events.forEach((e) => window.removeEventListener(e, reset));
+
+    systemSettings
+      .get()
+      .then((r) => {
+        if (disposed) return;
+        const raw = (r.data as Record<string, string>)["session_timeout_minutes"];
+        minutes = parseInt(raw ?? "0", 10) || 0;
+        if (minutes <= 0) return;
+        bind();
+        arm();
+      })
+      .catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+      unbind();
+    };
+  }, [user?.id, logout]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>

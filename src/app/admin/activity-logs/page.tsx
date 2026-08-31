@@ -1,0 +1,236 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { admin, type AdminAuditLog } from "@/lib/api";
+import { PageHeader, SearchInput, EmptyState, ErrorState, Pagination } from "@/components/admin/ui";
+
+const PAGE_SIZE = 20;
+
+const fmtTime = (d?: string) =>
+  d ? new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+
+export default function AdminActivityLogsPage() {
+  const [logs, setLogs] = useState<AdminAuditLog[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [viewLog, setViewLog] = useState<AdminAuditLog | null>(null);
+
+  const fetchLogs = useCallback(() => {
+    setLoading(true);
+    admin
+      .auditLogs({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, search: search || undefined })
+      .then((r) => {
+        setLogs(r.data.data);
+        setTotal(r.data.total);
+        setLoadError("");
+      })
+      .catch((e) => {
+        setLogs([]);
+        setLoadError(e instanceof Error ? e.message : "Failed to load activity");
+      })
+      .finally(() => setLoading(false));
+  }, [page, search]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  const renderCompact = (a: AdminAuditLog): string => {
+    if (a.details == null) return "";
+    if (typeof a.details === "string") return a.details;
+    try {
+      return JSON.stringify(a.details);
+    } catch {
+      return String(a.details);
+    }
+  };
+
+  // Parse details into a flat key→value map so admins see readable rows
+  // instead of a raw JSON blob. Returns null when details aren't an object.
+  const detailEntries = (a: AdminAuditLog): [string, unknown][] | null => {
+    const raw = a.details;
+    if (raw == null) return null;
+    let obj = raw;
+    if (typeof raw === "string") {
+      try {
+        obj = JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+    if (typeof obj === "object" && obj !== null && !Array.isArray(obj)) {
+      return Object.entries(obj);
+    }
+    return null;
+  };
+
+  const formatValue = (v: unknown): string => {
+    if (v == null) return "—";
+    if (typeof v === "object") {
+      try {
+        return JSON.stringify(v, null, 2);
+      } catch {
+        return String(v);
+      }
+    }
+    return String(v);
+  };
+
+  return (
+    <div>
+      <PageHeader title="Activity Logs" subtitle={`${total.toLocaleString()} recorded actions`} />
+
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search action, user or case id..." className="flex-1 min-w-[200px]" />
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white border border-sutra-line rounded-xl p-4">
+              <div className="h-5 w-1/2 bg-sutra-line-2 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : loadError ? (
+        <ErrorState title="Couldn't load activity" message={loadError} onRetry={fetchLogs} />
+      ) : logs.length === 0 ? (
+        <EmptyState title="No activity found" description="Try adjusting your search" />
+      ) : (
+        <div className="bg-white border border-sutra-line rounded-xl overflow-x-auto">
+          <table className="w-full min-w-[820px]">
+            <thead className="border-b border-sutra-line-2 bg-sutra-bg/50">
+              <tr>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">ID</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Action</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Details</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">User</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Timestamp</th>
+                <th className="px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-sutra-line-2">
+              {logs.map((a) => (
+                <tr key={a.id} className="hover:bg-sutra-bg/40 transition-colors">
+                  <td className="px-4 py-3.5 text-[12px] font-bold text-navy">#{a.id}</td>
+                  <td className="px-4 py-3.5">
+                    <span className="text-[12px] font-semibold px-2 py-0.5 rounded-md bg-tint text-navy whitespace-nowrap">
+                      {a.action ?? "—"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-[12.5px] text-sutra-ink-2 max-w-[380px]">
+                    <p className="truncate font-mono text-[11.5px]">{renderCompact(a).slice(0, 200) || "—"}</p>
+                  </td>
+                  <td className="px-4 py-3.5 text-[12.5px] text-sutra-ink-2 truncate max-w-[180px]">{a.user?.email ?? "—"}</td>
+                  <td className="px-4 py-3.5 text-[12px] text-sutra-ink-3 whitespace-nowrap">{fmtTime(a.created_at)}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center justify-end">
+                      <button
+                        onClick={() => setViewLog(a)}
+                        className="h-8 px-3 rounded-lg border border-navy bg-white text-navy text-[12px] font-bold inline-flex items-center hover:bg-navy hover:text-white transition-colors"
+                      >
+                        View
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
+
+      {viewLog && (
+        <div className="fixed inset-0 z-50 grid place-items-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setViewLog(null)} />
+          <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-white rounded-xl border border-sutra-line shadow-xl selection:bg-blue-100 selection:text-blue-900">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-sutra-line sticky top-0 bg-white z-10">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="text-[11px] font-bold text-sutra-ink-3 whitespace-nowrap">LOG #{viewLog.id}</span>
+                <span className="text-[12px] font-semibold px-2.5 py-1 rounded-md bg-tint text-navy whitespace-nowrap">{viewLog.action ?? "—"}</span>
+              </div>
+              <button
+                onClick={() => setViewLog(null)}
+                className="h-8 w-8 rounded-lg border border-sutra-line bg-white text-sutra-ink-2 grid place-items-center hover:bg-tint hover:text-sutra-ink transition-colors flex-none"
+                aria-label="Close"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              {/* Who / when */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10.5px] font-bold uppercase tracking-wider text-sutra-ink-3 mb-1">User</p>
+                  <p className="text-[13.5px] font-semibold text-sutra-ink">{viewLog.user?.email ?? (viewLog.user_id ? `#${viewLog.user_id}` : "—")}</p>
+                </div>
+                <div>
+                  <p className="text-[10.5px] font-bold uppercase tracking-wider text-sutra-ink-3 mb-1">Timestamp</p>
+                  <p className="text-[13.5px] font-semibold text-sutra-ink">{fmtTime(viewLog.created_at)}</p>
+                </div>
+              </div>
+
+              {/* Details — human-friendly key/value rows */}
+              <div>
+                <p className="text-[10.5px] font-bold uppercase tracking-wider text-sutra-ink-3 mb-2">Details</p>
+                {(() => {
+                  const entries = detailEntries(viewLog);
+                  if (entries) {
+                    return (
+                      <div className="space-y-2.5">
+                        {entries.map(([key, val]) => (
+                          <div key={key} className="border border-sutra-line rounded-lg overflow-hidden">
+                            <div className="px-3 py-1.5 bg-sutra-bg/70 border-b border-sutra-line">
+                              <p className="text-[11px] font-bold text-navy uppercase tracking-wide font-mono">{key}</p>
+                            </div>
+                            <div className="px-3 py-2.5">
+                              {typeof val === "object" && val !== null ? (
+                                <pre className="text-[12px] font-mono text-sutra-ink leading-relaxed whitespace-pre-wrap break-words">{formatValue(val)}</pre>
+                              ) : (
+                                <p className="text-[13px] text-sutra-ink">{formatValue(val)}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return (
+                    <p className="text-[13px] text-sutra-ink bg-sutra-bg border border-sutra-line rounded-lg px-3 py-3 break-words">
+                      {viewLog.details ? String(viewLog.details) : "—"}
+                    </p>
+                  );
+                })()}
+              </div>
+
+              {/* Integrity hashes */}
+              {(viewLog.previous_hash || viewLog.current_hash) && (
+                <div className="space-y-2.5">
+                  {viewLog.previous_hash && (
+                    <div>
+                      <p className="text-[10.5px] font-bold uppercase tracking-wider text-sutra-ink-3 mb-1">Previous hash</p>
+                      <code className="block font-mono text-[11px] text-sutra-ink-2 bg-sutra-bg border border-sutra-line rounded-lg px-3 py-2 break-all">{viewLog.previous_hash}</code>
+                    </div>
+                  )}
+                  {viewLog.current_hash && (
+                    <div>
+                      <p className="text-[10.5px] font-bold uppercase tracking-wider text-sutra-ink-3 mb-1">Current hash</p>
+                      <code className="block font-mono text-[11px] text-sutra-ink-2 bg-sutra-bg border border-sutra-line rounded-lg px-3 py-2 break-all">{viewLog.current_hash}</code>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

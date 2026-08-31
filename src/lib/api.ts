@@ -5,7 +5,7 @@
  * (credentials: "include") so httpOnly JWTs work across tab sessions.
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3015";
+export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3015";
 
 /* ------------------------------------------------------------------ */
 /*  Generic fetch wrapper                                              */
@@ -13,7 +13,8 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3015";
 
 type ApiOptions = RequestInit & { json?: unknown };
 
-async function request<T = unknown>(
+/** Shared fetch helper — reused by the admin/corpus service modules. */
+export async function request<T = unknown>(
   path: string,
   { json, ...init }: ApiOptions = {}
 ): Promise<T> {
@@ -33,11 +34,18 @@ async function request<T = unknown>(
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers,
-    credentials: "include",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+  } catch {
+    // Network failure (server down, no connection) — surface a readable
+    // message instead of the browser's raw "Failed to fetch".
+    throw new ApiError(0, "Unable to reach the server. Please check your connection and try again.");
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -45,7 +53,10 @@ async function request<T = unknown>(
     throw new ApiError(res.status, body?.message ?? res.statusText, body);
   }
 
-  return res.json();
+  // Some endpoints return 204/empty bodies (e.g. DELETE plan) — parse defensively.
+  if (res.status === 204 || res.status === 205) return undefined as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export class ApiError extends Error {
@@ -110,6 +121,9 @@ export const auth = {
 
   logout: () =>
     request("/api/v1/auth/logout", { method: "POST" }),
+
+  timeout: () =>
+    request("/api/v1/auth/timeout", { method: "POST" }),
 
   refreshToken: (refreshToken: string) =>
     request<{ success: boolean; data: AuthTokens }>(
@@ -224,15 +238,20 @@ export const aiChat = {
       if (token) headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const res = await fetch(
-      `${BASE}/api/v1/ai-chat/sessions/${sessionId}/messages`,
-      {
-        method: "POST",
-        headers,
-        body: formData,
-        credentials: "include",
-      }
-    );
+    let res: Response;
+    try {
+      res = await fetch(
+        `${BASE}/api/v1/ai-chat/sessions/${sessionId}/messages`,
+        {
+          method: "POST",
+          headers,
+          body: formData,
+          credentials: "include",
+        }
+      );
+    } catch {
+      throw new ApiError(0, "Unable to reach the server. Please check your connection and try again.");
+    }
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -749,5 +768,378 @@ export const user = {
     request<{ success: boolean; message: string }>("/api/v1/users/me", {
       method: "PUT",
       json: data,
+    }),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Admin Panel                                                        */
+/* ------------------------------------------------------------------ */
+
+export interface AdminPagination {
+  limit: number;
+  offset: number;
+  total: number;
+  page?: number;
+  total_pages?: number;
+  pages?: number;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  role: string;
+  account_status: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email_verified?: boolean;
+  whatsapp_number?: string | null;
+  whatsapp_verified?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  profile?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    employee_id?: string | null;
+    designation_rank?: string | null;
+    cadre_service?: string | null;
+    district?: string | null;
+    state?: string | null;
+    profile_photo_url?: string | null;
+  } | null;
+  subscription?: {
+    id: number;
+    status: string;
+    plan_id?: number | null;
+    plan?: { id: number; name?: string } | null;
+    start_date?: string;
+    end_date?: string | null;
+  } | null;
+}
+
+export interface AdminCase {
+  id: number;
+  case_title: string;
+  status?: string;
+  priority?: string | null;
+  officer_user_id?: number | null;
+  assigned_cvo_id?: number | null;
+  assigned_legal_board_id?: number | null;
+  statement_of_charges?: string | null;
+  imputation?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  officer?: { id: number; email: string; profile?: { first_name?: string | null; last_name?: string | null } | null } | null;
+  assigned_cvo?: { id: number; email: string; profile?: { first_name?: string | null; last_name?: string | null } | null } | null;
+  assigned_legal_board?: { id: number; email: string; profile?: { first_name?: string | null; last_name?: string | null } | null } | null;
+}
+
+export interface AdminJudicialCase {
+  id: number;
+  title: string;
+  case_number?: string | null;
+  status?: string;
+  pdf_filename?: string | null;
+  pdf_size_bytes?: number | null;
+  page_count?: number | null;
+  created_at?: string;
+  updated_at?: string;
+  user?: { id: number; email: string } | null;
+}
+
+export interface AdminSubscription {
+  id: number;
+  user_id: number | null;
+  plan_id: number | null;
+  status: string;
+  start_date: string;
+  end_date?: string | null;
+  amount_paid?: number | null;
+  last_reminder_sent_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  user?: { id: number; email: string; first_name?: string | null; last_name?: string | null } | null;
+  plan?: { id: number; name?: string; price_monthly?: number; price_yearly?: number } | null;
+}
+
+export interface AdminPlan {
+  id: number;
+  name: string;
+  price_monthly: number | null;
+  price_quarterly?: number | null;
+  price_half_yearly?: number | null;
+  price_yearly: number | null;
+  is_popular?: boolean;
+  features: Record<string, unknown>;
+  active_subscriptions?: number;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AdminAuditLog {
+  id: number;
+  user_id?: number | null;
+  action?: string | null;
+  details?: string | Record<string, unknown> | null;
+  previous_hash?: string | null;
+  current_hash?: string | null;
+  created_at?: string;
+  user?: { id: number; email: string; profile?: { first_name?: string | null; last_name?: string | null } | null } | null;
+}
+
+export const admin = {
+  /* ---- Users ---- */
+  listUsers: (params: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    role?: string;
+    account_status?: string;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params.search) qs.set("search", params.search);
+    if (params.role) qs.set("role", params.role);
+    if (params.account_status) qs.set("account_status", params.account_status);
+    const s = qs.toString();
+    return request<{ success: boolean; data: { data: AdminUser[]; pagination: AdminPagination } }>(
+      `/api/v1/admin/users${s ? `?${s}` : ""}`
+    );
+  },
+
+  getUser: (userId: number) =>
+    request<{
+      success: boolean;
+      data: {
+        user: AdminUser;
+        subscriptions: AdminSubscription[];
+        cases: AdminCase[];
+        audit_logs: AdminAuditLog[];
+      };
+    }>(`/api/v1/admin/users/${userId}`),
+
+  updateUserStatus: (userId: number, account_status: string) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/users/${userId}/status`, {
+      method: "PUT",
+      json: { account_status },
+    }),
+
+  updateUserRole: (userId: number, role: string) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/users/${userId}/role`, {
+      method: "PUT",
+      json: { role },
+    }),
+
+  createUser: (data: { email: string; password: string; role: string }) =>
+    request<{ success: boolean; data: AdminUser }>("/api/v1/auth/register", {
+      method: "POST",
+      json: data,
+    }),
+
+  listCVOs: () =>
+    request<{ success: boolean; data: AdminUser[] }>("/api/v1/admin/users/cvos/assignment"),
+
+  /* ---- Cases ---- */
+  listCases: (params: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    search?: string;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params.status) qs.set("status", params.status);
+    if (params.search) qs.set("q", params.search);
+    const s = qs.toString();
+    return request<{ success: boolean; data: { data: AdminCase[]; total: number } }>(
+      `/api/v1/admin/cases${s ? `?${s}` : ""}`
+    );
+  },
+
+  createCase: (data: { title: string; description: string; officer_id: number }) =>
+    request<{ success: boolean; data: AdminCase }>("/api/v1/admin/cases", {
+      method: "POST",
+      json: data,
+    }),
+
+  updateCase: (
+    caseId: number,
+    data: { case_title?: string; description?: string; priority?: string; officer_id?: number }
+  ) =>
+    request<{ success: boolean; data: AdminCase }>(`/api/v1/admin/cases/${caseId}`, {
+      method: "PUT",
+      json: data,
+    }),
+
+  deleteCase: (caseId: number) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/cases/${caseId}`, {
+      method: "DELETE",
+    }),
+
+  listJudicialCases: (params: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    search?: string;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params.status) qs.set("status", params.status);
+    if (params.search) qs.set("q", params.search);
+    const s = qs.toString();
+    return request<{ success: boolean; data: { data: AdminJudicialCase[]; total: number } }>(
+      `/api/v1/admin/judicial-cases${s ? `?${s}` : ""}`
+    );
+  },
+
+  deleteJudicialCase: (caseId: number) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/judicial-cases/${caseId}`, {
+      method: "DELETE",
+    }),
+
+  createJudicialCase: (data: { title: string; case_number?: string; user_id?: number }) =>
+    request<{ success: boolean; data: AdminJudicialCase }>("/api/v1/judicial-cases", {
+      method: "POST",
+      json: data,
+    }),
+
+  updateJudicialCase: (
+    caseId: number,
+    data: { title?: string; case_number?: string | null; user_id?: number }
+  ) =>
+    request<{ success: boolean; data: AdminJudicialCase }>(`/api/v1/admin/judicial-cases/${caseId}`, {
+      method: "PUT",
+      json: data,
+    }),
+
+  assignCaseToCVO: (caseId: number, cvo_id: number) =>
+    request<{ success: boolean; data: AdminCase }>(`/api/v1/cases/${caseId}/assign-cvo`, {
+      method: "POST",
+      json: { cvo_id },
+    }),
+
+  /* ---- Subscriptions ---- */
+  listSubscriptions: (params: {
+    limit?: number;
+    offset?: number;
+    user?: string;
+    planId?: number;
+    status?: string;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params.user) qs.set("user", params.user);
+    if (params.planId !== undefined) qs.set("planId", String(params.planId));
+    if (params.status) qs.set("status", params.status);
+    const s = qs.toString();
+    return request<{ success: boolean; data: { data: AdminSubscription[]; total: number } }>(
+      `/api/v1/admin/subscriptions${s ? `?${s}` : ""}`
+    );
+  },
+
+  getSubscription: (id: number) =>
+    request<{ success: boolean; data: AdminSubscription }>(`/api/v1/admin/subscriptions/${id}`),
+
+  createSubscription: (data: {
+    user_id: number;
+    plan_id: number;
+    status: string;
+    start_date: string;
+    end_date?: string;
+  }) =>
+    request<{ success: boolean; data: AdminSubscription }>("/api/v1/admin/subscriptions", {
+      method: "POST",
+      json: data,
+    }),
+
+  updateSubscription: (id: number, data: Partial<AdminSubscription>) =>
+    request<{ success: boolean; data: AdminSubscription }>(`/api/v1/admin/subscriptions/${id}`, {
+      method: "PUT",
+      json: data,
+    }),
+
+  deleteSubscription: (id: number) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/subscriptions/${id}`, {
+      method: "DELETE",
+    }),
+
+  resendReminder: (id: number) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/subscriptions/${id}/resend-reminder`, {
+      method: "POST",
+    }),
+
+  /* ---- Plans / packages ---- */
+  listPlans: (params: { limit?: number; offset?: number; name?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params.name) qs.set("name", params.name);
+    const s = qs.toString();
+    return request<{ success: boolean; data: { data: AdminPlan[]; total: number } }>(
+      `/api/v1/admin/plans${s ? `?${s}` : ""}`
+    );
+  },
+
+  createPlan: (data: {
+    name: string;
+    price_monthly?: number;
+    price_quarterly?: number | null;
+    price_half_yearly?: number | null;
+    price_yearly?: number | null;
+    is_popular?: boolean;
+    features?: Record<string, unknown>;
+  }) =>
+    request<{ success: boolean; data: AdminPlan }>("/api/v1/plans", {
+      method: "POST",
+      json: data,
+    }),
+
+  updatePlan: (id: number, data: Partial<AdminPlan>) =>
+    request<{ success: boolean; data: AdminPlan }>(`/api/v1/admin/plans/${id}`, {
+      method: "PUT",
+      json: data,
+    }),
+
+  deletePlan: (id: number) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/plans/${id}`, {
+      method: "DELETE",
+    }),
+
+  /* ---- Stats & audit ---- */
+  dashboardStats: () =>
+    request<{ success: boolean; data: Record<string, unknown> }>("/api/v1/admin/stats/dashboard"),
+
+  comprehensiveStats: () =>
+    request<{ success: boolean; data: Record<string, unknown> }>("/api/v1/admin/stats/comprehensive"),
+
+  auditLogs: (params: { limit?: number; offset?: number; search?: string; user_id?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params.search) qs.set("q", params.search);
+    if (params.user_id !== undefined) qs.set("user_id", String(params.user_id));
+    const s = qs.toString();
+    return request<{ success: boolean; data: { data: AdminAuditLog[]; total: number } }>(
+      `/api/v1/admin/audit-logs${s ? `?${s}` : ""}`
+    );
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/*  System settings (admin)                                            */
+/* ------------------------------------------------------------------ */
+
+export const systemSettings = {
+  get: () =>
+    request<{ success: boolean; data: Record<string, string> }>("/api/v1/settings"),
+
+  update: (settings: Record<string, string>) =>
+    request<{ success: boolean; message: string }>("/api/v1/settings", {
+      method: "PUT",
+      json: { settings },
     }),
 };

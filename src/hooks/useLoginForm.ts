@@ -4,14 +4,26 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
-export type LoginRole = "legal_practitioner" | "judiciary";
+/** Post-login destination per role. */
+export const ROLE_HOME: Record<string, string> = {
+  legal_practitioner: "/mediation",
+  judiciary: "/cases",
+  admin: "/admin",
+  owner: "/admin",
+  corpus_researcher: "/curation",
+  corpus_curator: "/curation",
+};
 
-/** Reusable login form state + submit. */
+/**
+ * Reusable login form state + submit.
+ *
+ * No "I Am" role selector: the backend derives the role from the account, so
+ * the post-login destination comes straight from `user.role`.
+ */
 export function useLoginForm(redirectTo = "/workspace") {
   const router = useRouter();
   const { login } = useAuth();
 
-  const [role, setRole] = useState<LoginRole>("legal_practitioner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,22 +35,19 @@ export function useLoginForm(redirectTo = "/workspace") {
       setError("");
       setLoading(true);
       try {
-        await login(email, password, role);
+        await login(email, password);
         // Redirect based on role from stored user
         const stored = typeof window !== "undefined" ? localStorage.getItem("user") : null;
         const user = stored ? JSON.parse(stored) : null;
-        let dest = redirectTo;
-        if (user?.role === "judiciary") dest = "/cases";
-        else if (user?.role === "legal_practitioner") dest = "/mediation";
-        router.push(dest);
+        router.push((user?.role && ROLE_HOME[user.role]) || redirectTo);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Login failed");
       } finally {
         setLoading(false);
       }
     },
-    [login, email, password, role, router, redirectTo]
+    [login, email, password, router, redirectTo]
   );
 
-  return { role, setRole, email, setEmail, password, setPassword, error, loading, submit };
+  return { email, setEmail, password, setPassword, error, loading, submit };
 }
