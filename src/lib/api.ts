@@ -780,6 +780,52 @@ export const user = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Notifications                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface AppNotification {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  priority?: string;
+  status?: string;
+  read_at?: string | null;
+  action_url?: string | null;
+  action_text?: string | null;
+  created_at: string;
+  sender?: { id: number; email: string } | null;
+}
+
+export interface NotificationStats {
+  total: number;
+  unread: number;
+  by_type?: Record<string, number>;
+  by_priority?: Record<string, number>;
+}
+
+export const notifications = {
+  list: (params: { limit?: number; offset?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    const s = qs.toString();
+    return request<{ success: boolean; data: AppNotification[] }>(
+      `/api/v1/notifications${s ? `?${s}` : ""}`
+    );
+  },
+
+  stats: () =>
+    request<{ success: boolean; data: NotificationStats }>("/api/v1/notifications/stats"),
+
+  markRead: (id: number) =>
+    request<{ success: boolean }>(`/api/v1/notifications/${id}/read`, { method: "PUT" }),
+
+  markAllRead: () =>
+    request<{ success: boolean }>("/api/v1/notifications/read/all", { method: "PUT" }),
+};
+
+/* ------------------------------------------------------------------ */
 /*  Admin Panel                                                        */
 /* ------------------------------------------------------------------ */
 
