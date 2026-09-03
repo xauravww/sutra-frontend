@@ -882,6 +882,7 @@ export interface AdminCase {
   imputation?: string | null;
   created_at?: string;
   updated_at?: string;
+  deleted_at?: string | null;
   officer?: { id: number; email: string; profile?: { first_name?: string | null; last_name?: string | null } | null } | null;
   assigned_cvo?: { id: number; email: string; profile?: { first_name?: string | null; last_name?: string | null } | null } | null;
   assigned_legal_board?: { id: number; email: string; profile?: { first_name?: string | null; last_name?: string | null } | null } | null;
@@ -897,6 +898,7 @@ export interface AdminJudicialCase {
   page_count?: number | null;
   created_at?: string;
   updated_at?: string;
+  deleted_at?: string | null;
   user?: { id: number; email: string } | null;
 }
 
@@ -1006,12 +1008,14 @@ export const admin = {
     offset?: number;
     status?: string;
     search?: string;
+    deleted?: boolean;
   } = {}) => {
     const qs = new URLSearchParams();
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.offset !== undefined) qs.set("offset", String(params.offset));
     if (params.status) qs.set("status", params.status);
     if (params.search) qs.set("q", params.search);
+    if (params.deleted) qs.set("deleted", "true");
     const s = qs.toString();
     return request<{ success: boolean; data: { data: AdminCase[]; total: number } }>(
       `/api/v1/admin/cases${s ? `?${s}` : ""}`
@@ -1038,17 +1042,24 @@ export const admin = {
       method: "DELETE",
     }),
 
+  restoreCase: (caseId: number) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/cases/${caseId}/restore`, {
+      method: "POST",
+    }),
+
   listJudicialCases: (params: {
     limit?: number;
     offset?: number;
     status?: string;
     search?: string;
+    deleted?: boolean;
   } = {}) => {
     const qs = new URLSearchParams();
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.offset !== undefined) qs.set("offset", String(params.offset));
     if (params.status) qs.set("status", params.status);
     if (params.search) qs.set("q", params.search);
+    if (params.deleted) qs.set("deleted", "true");
     const s = qs.toString();
     return request<{ success: boolean; data: { data: AdminJudicialCase[]; total: number } }>(
       `/api/v1/admin/judicial-cases${s ? `?${s}` : ""}`
@@ -1058,6 +1069,11 @@ export const admin = {
   deleteJudicialCase: (caseId: number) =>
     request<{ success: boolean; message: string }>(`/api/v1/admin/judicial-cases/${caseId}`, {
       method: "DELETE",
+    }),
+
+  restoreJudicialCase: (caseId: number) =>
+    request<{ success: boolean; message: string }>(`/api/v1/admin/judicial-cases/${caseId}/restore`, {
+      method: "POST",
     }),
 
   createJudicialCase: (data: { title: string; case_number?: string; user_id?: number }) =>

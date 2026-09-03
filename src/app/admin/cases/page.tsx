@@ -57,6 +57,7 @@ export default function AdminCasesPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [showDeleted, setShowDeleted] = useState(false);
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
@@ -94,7 +95,7 @@ export default function AdminCasesPage() {
     setLoadError("");
     if (kind === "court") {
       admin
-        .listJudicialCases({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, status: status || undefined, search: search || undefined })
+        .listJudicialCases({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, status: status || undefined, search: search || undefined, deleted: showDeleted || undefined })
         .then((r) => {
           setCourtCases(r.data.data);
           setCourtTotal(r.data.total);
@@ -107,7 +108,7 @@ export default function AdminCasesPage() {
       return;
     }
     admin
-      .listCases({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, status: status || undefined, search: search || undefined })
+      .listCases({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, status: status || undefined, search: search || undefined, deleted: showDeleted || undefined })
       .then((r) => {
         setCases(r.data.data);
         setTotal(r.data.total);
@@ -117,7 +118,7 @@ export default function AdminCasesPage() {
         setLoadError(e instanceof Error ? e.message : "Failed to load cases");
       })
       .finally(() => setLoading(false));
-  }, [kind, page, search, status]);
+  }, [kind, page, search, status, showDeleted]);
 
   useEffect(() => {
     fetchCases();
@@ -125,6 +126,14 @@ export default function AdminCasesPage() {
 
   const switchKind = (next: CaseKind) => {
     setKind(next);
+    setPage(1);
+    setStatus("");
+    setSearch("");
+    setShowDeleted(false);
+  };
+
+  const toggleDeleted = () => {
+    setShowDeleted((v) => !v);
     setPage(1);
     setStatus("");
     setSearch("");
@@ -189,6 +198,40 @@ export default function AdminCasesPage() {
       fetchCases();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Delete failed", "error");
+    }
+  };
+
+  const handleRestore = async (c: AdminCase) => {
+    const ok = await confirm({
+      title: "Restore case",
+      message: `Restore "${c.case_title}"? It will reappear in the live list.`,
+      confirmLabel: "Restore",
+      tone: "default",
+    });
+    if (!ok) return;
+    try {
+      await admin.restoreCase(c.id);
+      toast("Case restored", "success");
+      fetchCases();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Restore failed", "error");
+    }
+  };
+
+  const handleRestoreCourt = async (c: AdminJudicialCase) => {
+    const ok = await confirm({
+      title: "Restore court case",
+      message: `Restore "${c.title}"? It will reappear in the live list.`,
+      confirmLabel: "Restore",
+      tone: "default",
+    });
+    if (!ok) return;
+    try {
+      await admin.restoreJudicialCase(c.id);
+      toast("Court case restored", "success");
+      fetchCases();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Restore failed", "error");
     }
   };
 
@@ -305,7 +348,7 @@ export default function AdminCasesPage() {
         title="Cases"
         subtitle={`${totalShown.toLocaleString()} total cases`}
         actions={
-          kind === "mediation" ? (
+          !showDeleted && kind === "mediation" ? (
             <button
               onClick={openCreate}
               className="inline-flex items-center gap-1.5 bg-navy text-white rounded-xl text-[14px] font-semibold px-4 py-2.5 hover:bg-navy-dark transition-colors"
@@ -315,7 +358,7 @@ export default function AdminCasesPage() {
               </svg>
               New Case
             </button>
-          ) : (
+          ) : !showDeleted ? (
             <button
               onClick={openCourtCreate}
               className="inline-flex items-center gap-1.5 bg-navy text-white rounded-xl text-[14px] font-semibold px-4 py-2.5 hover:bg-navy-dark transition-colors"
@@ -325,7 +368,7 @@ export default function AdminCasesPage() {
               </svg>
               New Court Case
             </button>
-          )
+          ) : undefined
         }
       />
 
@@ -347,6 +390,28 @@ export default function AdminCasesPage() {
         >
           Court Cases
         </button>
+      </div>
+
+      {/* Deleted / trash view (soft delete, bug #1572) */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <button
+          onClick={toggleDeleted}
+          className={`inline-flex items-center gap-2 rounded-xl border px-3.5 h-9 text-[12.5px] font-semibold transition-colors ${
+            showDeleted
+              ? "bg-amber-50 border-amber-300 text-amber-800"
+              : "border-sutra-line bg-white text-sutra-ink-2 hover:bg-tint"
+          }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="w-4 h-4">
+            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+          </svg>
+          {showDeleted ? "Hide deleted" : "Show deleted"}
+        </button>
+        {showDeleted && (
+          <span className="text-[12.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+            Viewing soft-deleted {kind === "court" ? "court cases" : "cases"} only. Restore brings a row back to the live list.
+          </span>
+        )}
       </div>
 
       {showCreate && (
@@ -487,18 +552,29 @@ export default function AdminCasesPage() {
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => openCourtEdit(c)}
-                          className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-tint transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCourt(c)}
-                          className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-colors"
-                        >
-                          Delete
-                        </button>
+                        {showDeleted ? (
+                          <button
+                            onClick={() => handleRestoreCourt(c)}
+                            className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-colors"
+                          >
+                            Restore
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => openCourtEdit(c)}
+                              className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-tint transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCourt(c)}
+                              className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -537,18 +613,29 @@ export default function AdminCasesPage() {
                     <td className="px-4 py-3.5"><StatusBadge status={c.status ?? ""} /></td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => openEdit(c)}
-                          className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-tint transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(c)}
-                          className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-colors"
-                        >
-                          Delete
-                        </button>
+                        {showDeleted ? (
+                          <button
+                            onClick={() => handleRestore(c)}
+                            className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-colors"
+                          >
+                            Restore
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => openEdit(c)}
+                              className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-tint transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(c)}
+                              className="h-8 px-3 rounded-lg border border-sutra-line bg-white text-[12px] font-semibold text-sutra-ink-2 hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
