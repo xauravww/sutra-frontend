@@ -15,8 +15,49 @@ interface CompStats {
   };
 }
 
-const fmtMoney = (n: string | number) =>
-  Number(n).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+/** Compact INR for axis labels (₹12.5L, ₹4.2Cr, ₹1.2k). */
+const fmtCompact = (n: string | number): string => {
+  const v = Number(n);
+  if (v >= 10000000) return "₹" + (v / 10000000).toFixed(1) + "Cr";
+  if (v >= 100000) return "₹" + (v / 100000).toFixed(1) + "L";
+  if (v >= 1000) return "₹" + (v / 1000).toFixed(1) + "k";
+  return "₹" + Math.round(v);
+};
+
+/** Small CSS bar chart shared by both report cards (#1586 polish). */
+function MiniBars({
+  points,
+  fmt,
+  tone,
+}: {
+  points: Array<{ label: string; value: number }>;
+  fmt: (n: number) => string;
+  tone: "navy" | "green";
+}) {
+  const max = Math.max(1, ...points.map((p) => p.value));
+  const stop = tone === "navy" ? "to-[#3B76D6]" : "to-[#34C98D]";
+  const start = tone === "navy" ? "from-[#1E3A8A]" : "from-[#047857]";
+  const isMaxColor = tone === "navy" ? "text-navy" : "text-emerald-700";
+  return (
+    <div className="flex items-end gap-1.5 sm:gap-2 h-36 px-0.5">
+      {points.map((p) => {
+        const isMax = p.value === max;
+        return (
+          <div key={p.label} className="flex-1 flex flex-col items-center gap-1.5 min-w-0 group" title={`${p.label}: ${fmt(p.value)}`}>
+            <span className={`text-[10px] font-semibold tabular-nums leading-none ${isMax ? isMaxColor : "text-sutra-ink-3"}`}>
+              {fmt(p.value)}
+            </span>
+            <div
+              className={`w-full rounded-t-[4px] bg-gradient-to-t ${start} ${stop} transition-opacity group-hover:opacity-80`}
+              style={{ height: `${Math.max(6, (p.value / max) * 100)}px`, opacity: isMax ? 1 : 0.82 }}
+            />
+            <span className="text-[10px] text-sutra-ink-3 truncate">{p.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AdminReportsPage() {
   const [stats, setStats] = useState<CompStats | null>(null);
@@ -36,8 +77,6 @@ export default function AdminReportsPage() {
 
   const growth = stats?.charts?.user_growth ?? [];
   const revenue = stats?.charts?.revenue ?? [];
-  const maxGrowth = Math.max(1, ...growth.map((g) => Number(g.new_users)));
-  const maxRevenue = Math.max(1, ...revenue.map((r) => Number(r.revenue)));
 
   return (
     <div>
@@ -65,15 +104,11 @@ export default function AdminReportsPage() {
               {growth.length === 0 ? (
                 <p className="text-[13px] text-sutra-ink-3">No data</p>
               ) : (
-                <div className="flex items-end gap-2 h-32">
-                  {growth.map((g) => (
-                    <div key={g.month} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-                      <span className="text-[10px] text-sutra-ink-3 font-semibold">{g.new_users}</span>
-                      <div className="w-full bg-navy rounded-t-md" style={{ height: `${Math.max(4, (Number(g.new_users) / maxGrowth) * 100)}px` }} />
-                      <span className="text-[10px] text-sutra-ink-3 truncate">{g.month}</span>
-                    </div>
-                  ))}
-                </div>
+                <MiniBars
+                  points={growth.map((g) => ({ label: g.month, value: Number(g.new_users) }))}
+                  fmt={(v) => String(v)}
+                  tone="navy"
+                />
               )}
             </div>
 
@@ -83,15 +118,11 @@ export default function AdminReportsPage() {
               {revenue.length === 0 ? (
                 <p className="text-[13px] text-sutra-ink-3">No data</p>
               ) : (
-                <div className="flex items-end gap-2 h-32">
-                  {revenue.map((r) => (
-                    <div key={r.month} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-                      <span className="text-[10px] text-sutra-ink-3 font-semibold">{fmtMoney(r.revenue)}</span>
-                      <div className="w-full bg-green-bg border border-green-dot rounded-t-md" style={{ height: `${Math.max(4, (Number(r.revenue) / maxRevenue) * 100)}px` }} />
-                      <span className="text-[10px] text-sutra-ink-3 truncate">{r.month}</span>
-                    </div>
-                  ))}
-                </div>
+                <MiniBars
+                  points={revenue.map((r) => ({ label: r.month, value: Number(r.revenue) }))}
+                  fmt={(v) => fmtCompact(v)}
+                  tone="green"
+                />
               )}
             </div>
           </div>
