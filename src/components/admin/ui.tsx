@@ -105,6 +105,19 @@ export function SearchInput({
         placeholder={placeholder}
         className="border-0 bg-transparent outline-none w-full font-[inherit] text-[14px] sm:text-[15px] text-sutra-ink placeholder:text-sutra-ink-3"
       />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          title="Clear search"
+          aria-label="Clear search"
+          className="h-6 w-6 rounded-full text-sutra-ink-3 grid place-items-center flex-none hover:bg-sutra-bg hover:text-sutra-ink transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-[15px] h-[15px]">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      )}
     </label>
   );
 }
