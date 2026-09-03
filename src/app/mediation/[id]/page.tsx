@@ -87,6 +87,14 @@ export default function MediationSessionPage() {
   useEffect(() => { if (sessionId) mediation.get(sessionId).then(r => setSession(r.data)).catch(() => {}).finally(() => setLoading(false)); }, [sessionId]);
   useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages, chatLoading]);
 
+  // Any toast auto-dismisses after a few seconds (bug #1562) — covers the
+  // "Analysis complete" toast which is set directly, not via showToast().
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   // Sync edit fields when session changes
   useEffect(() => {
     if (session) {
@@ -698,6 +706,14 @@ export default function MediationSessionPage() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 flex-none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
             )}
             <span className="text-[13px] sm:text-[14px] font-semibold">{toast.message}</span>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="ml-1 h-6 w-6 rounded-full grid place-items-center flex-none hover:bg-black/5 transition-colors"
+              aria-label="Dismiss notification"
+            >
+              <I.X className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}
