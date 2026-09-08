@@ -217,3 +217,63 @@ input:focus-visible,
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-sutra-ink-3);
 }
+
+/* Hide the browser's native password reveal so only the app's own show/hide
+   control shows (AUTH-01). Edge/IE reveal + the autofill clearance buttons. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+input::-webkit-credentials-auto-fill-button,
+input::-webkit-contacts-auto-fill-button {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.rich-settlement-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-sutra-ink-3);
+  pointer-events: none;
+}
+.rich-settlement-editor .ProseMirror {
+  min-height: 240px;
+  outline: none;
+}
+.rich-settlement-editor .ProseMirror > p:first-child:last-child:empty::before {
+  content: "Write settlement notes here…";
+  color: var(--color-sutra-ink-3);
+  pointer-events: none;
+}
+.rich-settlement-editor .ProseMirror h2 {
+  margin: 0.75em 0 0.35em;
+  font-size: 1.2em;
+  font-weight: 700;
+}
+.rich-settlement-editor .ProseMirror ul,
+.rich-settlement-editor .ProseMirror ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+.rich-settlement-editor .ProseMirror blockquote {
+  margin: 0.75em 0;
+  padding-left: 0.75em;
+  border-left: 3px solid var(--color-sutra-line);
+  color: var(--color-sutra-ink-2);
+}
+.rich-settlement-editor h2 {
+  margin: 0.75em 0 0.35em;
+  font-size: 1.2em;
+  font-weight: 700;
+}
+.rich-settlement-editor ul,
+.rich-settlement-editor ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+.rich-settlement-editor blockquote {
+  margin: 0.75em 0;
+  padding-left: 0.75em;
+  border-left: 3px solid var(--color-sutra-line);
+  color: var(--color-sutra-ink-2);
+}

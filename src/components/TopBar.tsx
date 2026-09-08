@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Logo from "@/components/Logo";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
@@ -9,6 +10,9 @@ import { notifications, type AppNotification } from "@/lib/api";
 
 export default function TopBar() {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
+  // The Mediation link is redundant while already inside the mediation area.
+  const onMediationPage = pathname === "/mediation" || (!!pathname && /^\/mediation\/\d+/.test(pathname));
 
   const isJudiciary = user?.role === "judiciary";
   const isPractitioner = user?.role === "legal_practitioner";
@@ -41,11 +45,12 @@ export default function TopBar() {
     if (!user) return;
     setLoading(true);
     notifications
-      .list({ limit: 10 })
+      .list({ limit: 10, unread_only: true })
       .then((r) => {
-        setItems(r.data ?? []);
-        const u = r.data?.filter((n) => !n.read_at && n.status !== "read").length ?? 0;
-        setUnread(u);
+        const nextItems = r.data?.notifications ?? [];
+        setItems(nextItems);
+        // Keep the badge authoritative from the stats endpoint; the list is paginated.
+        notifications.stats().then((stats) => setUnread(stats.data?.unread ?? 0)).catch(() => undefined);
       })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
@@ -76,7 +81,7 @@ export default function TopBar() {
     if (!n.read_at) {
       notifications.markRead(n.id).catch(() => undefined);
       setUnread((v) => Math.max(0, v - 1));
-      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: x.read_at ?? new Date().toISOString() } : x)));
+      setItems((prev) => prev.filter((x) => x.id !== n.id));
     }
     setOpen(false);
     if (n.action_url) {
@@ -90,7 +95,7 @@ export default function TopBar() {
   const markAllRead = async () => {
     notifications.markAllRead().catch(() => undefined);
     setUnread(0);
-    setItems((prev) => prev.map((x) => ({ ...x, read_at: x.read_at ?? new Date().toISOString() })));
+    setItems([]);
   };
 
   const fmtWhen = (iso?: string) => {
@@ -111,8 +116,8 @@ export default function TopBar() {
     <header className="bg-white border-b border-sutra-line sticky top-0 z-20">
       <ImpersonationBanner />
       <div className="max-w-[940px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
-        <Link href={home} className="flex items-center no-underline flex-none">
-          <Logo />
+        <Link href={home} className="flex items-center no-underline flex-none min-w-0">
+          <Logo className="h-7 sm:h-9 w-auto max-w-[150px] sm:max-w-none object-contain" />
         </Link>
 
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
@@ -121,7 +126,7 @@ export default function TopBar() {
               Cases
             </Link>
           )}
-          {isPractitioner && (
+          {isPractitioner && !onMediationPage && (
             <Link href="/mediation" className="hidden sm:inline-block text-sm font-semibold text-sutra-ink-2 hover:text-navy px-3 py-2 rounded-lg transition-colors">
               Mediation
             </Link>
@@ -244,9 +249,12 @@ export default function TopBar() {
 
           <button
             onClick={logout}
-            className="text-xs sm:text-sm font-semibold text-sutra-ink-3 hover:text-navy px-2 sm:px-3 py-2 rounded-lg transition-colors flex-none"
+            title="Sign out"
+            aria-label="Sign out"
+            className="inline-flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto text-xs sm:text-sm font-semibold text-sutra-ink-3 hover:text-navy px-0 sm:px-3 py-2 rounded-lg transition-colors flex-none hover:bg-tint sm:hover:bg-transparent"
           >
-            Sign out
+            <svg className="w-[18px] h-[18px] sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+            <span className="hidden sm:inline">Sign out</span>
           </button>
         </div>
       </div>

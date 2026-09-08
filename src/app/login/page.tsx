@@ -60,14 +60,6 @@ export default function LoginPage() {
           {error && (
             <div className="mt-3">
               <p className="text-[13px] text-red-700">{error}</p>
-              {error.toLowerCase().includes("pending verification") && email && (
-                <Link
-                  href={`/verify-email?email=${encodeURIComponent(email)}`}
-                  className="text-[13px] font-semibold text-navy hover:underline mt-1 inline-block"
-                >
-                  Verify your email →
-                </Link>
-              )}
             </div>
           )}
 

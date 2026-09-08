@@ -12,6 +12,7 @@ export function useVerifyEmailForm() {
   const router = useRouter();
 
   const email = searchParams.get("email") ?? "";
+  const reason = searchParams.get("reason") ?? "";
 
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState<string | null>(null);
@@ -66,5 +67,5 @@ export function useVerifyEmailForm() {
     }
   }, [email, otp, router]);
 
-  return { email, otp, setOtp, devOtp, error, success, loading, sending, cooldown, sendOtp, verify };
+  return { email, reason, otp, setOtp, devOtp, error, success, loading, sending, cooldown, sendOtp, verify };
 }

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { ApiError } from "@/lib/api";
 
 /** Post-login destination per role. */
 export const ROLE_HOME: Record<string, string> = {
@@ -41,7 +42,17 @@ export function useLoginForm(redirectTo = "/workspace") {
         const user = stored ? JSON.parse(stored) : null;
         router.push((user?.role && ROLE_HOME[user.role]) || redirectTo);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Login failed");
+        const status = err instanceof ApiError ? err.status : 0;
+        const msg = err instanceof Error ? err.message : "Login failed";
+        // Valid credentials on an account that still needs email verification:
+        // route straight to the OTP screen (AUTH-05) instead of stranding the
+        // user between "not verified" and "already registered".
+        if (status === 403 && /(not verified|pending verification|otp)/i.test(msg)) {
+          router.push(`/verify-email?email=${encodeURIComponent(email)}&reason=pending`);
+          setError("");
+          return;
+        }
+        setError(msg);
       } finally {
         setLoading(false);
       }

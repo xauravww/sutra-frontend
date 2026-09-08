@@ -106,25 +106,25 @@ export default function ProfilePage() {
   return (
     <div className="min-h-dvh">
       <TopBar />
-      <main className="max-w-[640px] mx-auto px-6 py-8 pb-21">
+      <main className="max-w-[640px] mx-auto px-4 sm:px-6 py-8 pb-21">
         <h1 className="text-[28px] font-bold tracking-tight mb-1">Profile</h1>
         <p className="text-[15px] text-sutra-ink-3 mb-8">
           Manage your personal and professional details
         </p>
 
         {/* Account info (read-only) */}
-        <section className="bg-white border border-sutra-line rounded-2xl p-6 mb-6">
+        <section className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 mb-6">
           <h2 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-4">
             Account
           </h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="min-w-0">
               <span className="block text-[12px] font-semibold text-sutra-ink-3 mb-1">Email</span>
-              <span className="text-[15px] text-sutra-ink font-medium">{profile?.email || "—"}</span>
+              <span className="block text-[15px] text-sutra-ink font-medium break-all">{profile?.email || "—"}</span>
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="block text-[12px] font-semibold text-sutra-ink-3 mb-1">Role</span>
-              <span className="text-[15px] text-sutra-ink font-medium">{roleLabel}</span>
+              <span className="block text-[15px] text-sutra-ink font-medium break-words">{roleLabel}</span>
             </div>
             <div>
               <span className="block text-[12px] font-semibold text-sutra-ink-3 mb-1">Status</span>
@@ -153,40 +153,40 @@ export default function ProfilePage() {
         </section>
 
         {/* Personal details */}
-        <section className="bg-white border border-sutra-line rounded-2xl p-6 mb-6">
+        <section className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 mb-6">
           <h2 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-4">
             Personal Details
           </h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Rahul" />
             <Input label="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="e.g. Sharma" />
           </div>
         </section>
 
         {/* Professional details */}
-        <section className="bg-white border border-sutra-line rounded-2xl p-6 mb-6">
+        <section className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 mb-6">
           <h2 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-4">
             Professional Details
           </h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Employee ID" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="e.g. EMP-12345" />
             <Input label="Cadre / Service" value={cadreService} onChange={(e) => setCadreService(e.target.value)} placeholder="e.g. IAS, IPS" />
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <Input label="Designation / Rank" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. District Judge" />
             </div>
           </div>
         </section>
 
         {/* Address */}
-        <section className="bg-white border border-sutra-line rounded-2xl p-6 mb-6">
+        <section className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 mb-6">
           <h2 className="text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-4">
             Address
           </h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="col-span-1 sm:col-span-2">
               <Input label="Head Office Address" value={headOffice} onChange={(e) => setHeadOffice(e.target.value)} placeholder="Full address" />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <Input label="Branch Office Address" value={branchOffice} onChange={(e) => setBranchOffice(e.target.value)} placeholder="Full address" />
             </div>
             <Input label="Country" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. India" />

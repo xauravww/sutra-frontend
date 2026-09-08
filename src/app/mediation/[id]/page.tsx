@@ -5,7 +5,12 @@ import TopBar from "@/components/TopBar";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { mediation, type MediationSession } from "@/lib/api";
+import { getSessionStage, hasCompletedAnalysis, type MaybeSession } from "@/lib/mediationStatus";
 import Markdown from "react-markdown";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import { Bold, Italic, Underline as UnderlineIcon, Heading2, List, ListOrdered, Quote, RemoveFormatting, Undo2, Redo2, MousePointer2 } from "lucide-react";
 
 /* ─── Premium Lucide icons ─── */
 type IProps = { className?: string } | string;
@@ -63,6 +68,8 @@ export default function MediationSessionPage() {
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string; type: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [uploadNotice, setUploadNotice] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editPartyA, setEditPartyA] = useState("");
@@ -108,6 +115,10 @@ export default function MediationSessionPage() {
   const [analysisStarted, setAnalysisStarted] = useState(false);
 
   const doAnalyze = async () => {
+    if (docs.length === 0) {
+      showToast("Please upload documents first.", "error");
+      return;
+    }
     setAnalyzing(true);
     setAnalysisStarted(true);
     try {
@@ -138,10 +149,14 @@ export default function MediationSessionPage() {
       setToast({ message: "Failed to start analysis. Please try again.", type: "error" });
     }
   };
-  const doChat = async () => { const q = chatInput.trim(); if (!q || chatLoading) return; setChatInput(""); setChatMessages(p => [...p, { role: "user", content: q }]); setChatLoading(true); try { const r = await mediation.chat(sessionId, q); setChatMessages(p => [...p, { role: "assistant", content: (r as any)?.data?.answer ?? "No response." }]); } catch { setChatMessages(p => [...p, { role: "assistant", content: "Failed to get response." }]); } setChatLoading(false); };
+  const doChat = async () => { const q = chatInput.trim(); if (!q || chatLoading || !analyzed) return; setChatInput(""); setChatMessages(p => [...p, { role: "user", content: q }]); setChatLoading(true); try { const r = await mediation.chat(sessionId, q); setChatMessages(p => [...p, { role: "assistant", content: normalizeChatAnswer((r as any)?.data?.answer) }]); } catch { setChatMessages(p => [...p, { role: "assistant", content: "Failed to get response." }]); } setChatLoading(false); };
 
   const downloadSummary = async (party: "a" | "b" | "both") => {
     if (!a || !session) return;
+    if (!analyzed) {
+      showToast(noDocsYet ? "Please upload documents first." : "Please run analysis to download documents.", "error");
+      return;
+    }
     const { downloadSummaryPdf } = await import("@/lib/mediationSummaryPdf");
     const mode = party === "both" ? "combined" : party === "a" ? "party_a" : "party_b";
     downloadSummaryPdf(session, mode);
@@ -165,20 +180,31 @@ export default function MediationSessionPage() {
   const uploadAll = async () => {
     const pending = files.filter(f => f.status === "pending");
     if (!pending.length) return;
+    setUploadNotice(false);
     setFiles(prev => prev.map(f => f.status === "pending" ? { ...f, status: "uploading" as FileStatus } : f));
     // Upload each file individually for reliable per-file error handling
+    let okCount = 0;
+    let errCount = 0;
     for (const f of pending) {
       try {
         const partyTag = f.party === "both" ? "PARTY_A" : f.party === "A" ? "PARTY_A" : "PARTY_B";
         await mediation.uploadDocument(sessionId, f.file, partyTag);
         setFiles(prev => prev.map(p => p.id === f.id ? { ...p, status: "done" as FileStatus } : p));
+        okCount += 1;
       } catch (err) {
         console.error("Upload failed for", f.file.name, err);
         setFiles(prev => prev.map(p => p.id === f.id ? { ...p, status: "error" as FileStatus } : p));
+        errCount += 1;
       }
     }
     // Refresh session to get uploaded docs from database
     try { const r = await mediation.get(sessionId); setSession(r.data); } catch {}
+    // Skippable "uploaded — generate analysis" notice (DOC-02) on a clean run.
+    if (okCount > 0 && errCount === 0) {
+      setUploadNotice(true);
+    } else if (errCount > 0) {
+      showToast(errCount === pending.length ? "Upload failed. Please retry." : `Uploaded ${okCount}, ${errCount} failed.`, "error");
+    }
   };
 
   if (loading) return <div className="min-h-dvh"><TopBar /><main className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-8"><div className="space-y-4"><div className="h-5 w-32 bg-sutra-line-2 rounded animate-pulse" /><div className="h-8 w-64 bg-sutra-line-2 rounded animate-pulse" /><div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5"><div className="h-[300px] bg-white border border-sutra-line rounded-2xl animate-pulse" /><div className="h-[300px] bg-white border border-sutra-line rounded-2xl animate-pulse" /></div></div></main></div>;
@@ -187,6 +213,26 @@ export default function MediationSessionPage() {
 
   const a = session.analysis as any;
   const docs = session.documents ?? [];
+  const analyzed = hasCompletedAnalysis(a);
+  // DETAIL-05: controls reflect prerequisites. Run Analysis needs ≥1 uploaded doc
+  // (session.documents — the queue is picked up only after upload), downloads need
+  // a completed analysis.
+  const canRunAnalysis = docs.length > 0 && !analyzing;
+  const canDownload = analyzed;
+  const noDocsYet = docs.length === 0;
+
+  const refreshSession = async () => {
+    setRefreshing(true);
+    try {
+      const r = await mediation.get(sessionId);
+      setSession(r.data);
+      showToast("Session refreshed", "success");
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to refresh", "error");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const showToast = (message: string, type: "error" | "success") => {
     setToast({ message, type });
@@ -237,17 +283,30 @@ export default function MediationSessionPage() {
     <div className="min-h-dvh flex flex-col">
       <TopBar />
       <main className="flex-1 max-w-[1100px] mx-auto px-4 sm:px-6 py-5 sm:py-8 pb-24 w-full">
-        {/* Back */}
-        <Link href="/mediation" className="inline-flex items-center gap-1.5 text-navy font-semibold text-[13px] sm:text-[14px] no-underline mb-4 sm:mb-5 hover:text-navy-dark transition-colors group">
-          <I.ChevronL className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />Back to sessions
-        </Link>
+        {/* Back / refresh row */}
+        <div className="flex items-center justify-between gap-3 mb-4 sm:mb-5">
+          <Link href="/mediation" className="inline-flex items-center gap-1.5 text-navy font-semibold text-[13px] sm:text-[14px] no-underline hover:text-navy-dark transition-colors group">
+            <I.ChevronL className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />Back to sessions
+          </Link>
+          <button
+            type="button"
+            onClick={refreshSession}
+            disabled={refreshing}
+            title="Refresh session data"
+            className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-sutra-ink-2 bg-white border border-sutra-line rounded-lg px-2.5 py-1.5 hover:bg-tint hover:text-navy hover:border-navy/30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <svg className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /><path d="M21 3v5h-5" /></svg>
+            <span className="hidden sm:inline">{refreshing ? "Refreshing…" : "Refresh"}</span>
+            <span className="sm:hidden">{refreshing ? "…" : "Sync"}</span>
+          </button>
+        </div>
 
         {/* Hero */}
         <section className="bg-white border border-sutra-line border-t-[3px] border-t-navy rounded-2xl p-4 sm:p-6 mb-5">
           <div className="flex items-center justify-between gap-2 sm:gap-3 flex-wrap mb-3">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <span className="inline-flex items-center text-[12px] sm:text-[13px] font-bold text-navy tracking-wider bg-tint border border-tint-2 py-1 px-2.5 sm:px-3 rounded-lg">MED-{String(session.id).padStart(4, "0")}</span>
-              <StatusBadge status={session.status} />
+              <StatusBadge session={session} />
             </div>
             <div className="flex items-center gap-2">
               <button onClick={handleSyncFromDocs} className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-navy bg-white border border-sutra-line rounded-lg px-2.5 py-1.5 hover:bg-tint hover:border-navy/30 transition-colors" title="Re-analyze documents to update party names">
@@ -292,10 +351,10 @@ export default function MediationSessionPage() {
           ) : (
             <>
               <h1 className="text-[22px] sm:text-[28px] font-bold leading-[1.25] tracking-tight mb-4 sm:mb-5">{session.title}</h1>
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-3 sm:p-4">
-                <div className="flex items-center min-w-0"><PartyCard label="Party A" name={session.party_a_name} initial="A" /></div>
-                <div className="hidden sm:flex items-center justify-center self-center"><span className="font-serif italic text-[20px] text-sutra-ink-3 select-none leading-none">v.</span></div>
-                <div className="flex items-center min-w-0 border-t border-sutra-line-2 sm:border-t-0 pt-3 sm:pt-0"><PartyCard label="Party B" name={session.party_b_name} initial="B" /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_80px_minmax(0,1fr)] sm:items-center bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-3 sm:p-4">
+                <div className="min-w-0 flex items-center"><PartyCard label="Party A" name={session.party_a_name} initial="A" /></div>
+                <div className="hidden sm:flex w-20 h-full min-h-[56px] items-center justify-center justify-self-center" aria-label="versus"><span className="font-sans font-extrabold text-[24px] sm:text-[30px] tracking-tight text-navy select-none leading-none">V/S</span></div>
+                <div className="min-w-0 flex items-center justify-end border-t border-sutra-line-2 sm:border-t-0 pt-3 sm:pt-0"><PartyCard label="Party B" name={session.party_b_name} initial="B" align="right" /></div>
               </div>
             </>
           )}
@@ -333,21 +392,38 @@ export default function MediationSessionPage() {
           <div className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 min-h-[300px]">
             {/* Overview */}
             {tab === "overview" && (
-              <div className="space-y-6">
-                <div><h3 className="flex items-center gap-2 text-[12px] sm:text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-2.5"><I.FileText className="w-4 h-4 text-navy" />Dispute Summary</h3>
-                <p className="text-[15px] sm:text-[16px] text-sutra-ink leading-relaxed pl-6">{session.dispute_summary || "No dispute summary provided."}</p></div>
-                {a ? (
+              analyzed ? (
+                <div className="space-y-6">
+                  <div><h3 className="flex items-center gap-2 text-[12px] sm:text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3 mb-2.5"><I.FileText className="w-4 h-4 text-navy" />Dispute Summary</h3>
+                  <p className="text-[15px] sm:text-[16px] text-sutra-ink leading-relaxed pl-6">{session.dispute_summary || "No dispute summary provided."}</p></div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <PosCard label="Party A Position" val={a.party_a_favorable_points?.[0]?.point || (a.dominating_party === "PARTY_A" ? "Holds the stronger position" : a.dominating_party === "BALANCED" ? "Balanced position" : "Weaker position")} c="navy" />
                     <PosCard label="Party B Position" val={a.party_b_favorable_points?.[0]?.point || (a.dominating_party === "PARTY_B" ? "Holds the stronger position" : a.dominating_party === "BALANCED" ? "Balanced position" : "Weaker position")} c="amber" />
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <PosCard label="Party A Position" val="Awaiting analysis." c="navy" />
-                    <PosCard label="Party B Position" val="Awaiting analysis." c="amber" />
+                </div>
+              ) : (
+                // DETAIL-03: empty overview shows a next-step prompt only, no placeholder cards.
+                <div className="py-6 sm:py-8 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-tint text-navy grid place-items-center mx-auto mb-4 border border-tint-2">
+                    <I.FileText className="w-6 h-6" />
                   </div>
-                )}
-              </div>
+                  <p className="text-[16px] sm:text-[17px] font-semibold text-sutra-ink mb-1.5">
+                    {noDocsYet ? "No documents uploaded yet" : "No analysis yet"}
+                  </p>
+                  <p className="text-[13px] sm:text-[14px] text-sutra-ink-3 max-w-[340px] mx-auto mb-5 leading-relaxed">
+                    {noDocsYet
+                      ? "Upload case files and evidence in the Documents tab to begin. Party positions and strength appear here after the comparative analysis runs."
+                      : "Documents are ready. Start the comparative analysis from the Analysis tab — party positions and strength will appear here."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTab(noDocsYet ? "documents" : "analysis")}
+                    className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark shadow-sm"
+                  >
+                    {noDocsYet ? (<><I.Upload className="w-4 h-4" />Upload documents</>) : (<><I.Sparkles className="w-4 h-4" />Go to Analysis</>)}
+                  </button>
+                </div>
+              )
             )}
 
             {/* Analysis */}
@@ -356,24 +432,43 @@ export default function MediationSessionPage() {
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <h3 className="flex items-center gap-2 text-[15px] sm:text-[17px] font-bold"><I.BarChart className="w-5 h-5 text-navy" />Party Strength</h3>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => downloadSummary("a")} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold text-navy bg-tint border border-tint-2 rounded-lg px-2.5 py-1.5 hover:bg-tint-2 transition-colors" title="Download Party A summary">
+                    <button onClick={() => downloadSummary("a")} disabled={!canDownload} aria-disabled={!canDownload}
+                      title={canDownload ? "Download Party A summary" : noDocsYet ? "Please upload documents first" : "Please run analysis to download documents"}
+                      className={`inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold rounded-lg px-2.5 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${canDownload ? "text-navy bg-tint border border-tint-2 hover:bg-tint-2" : "text-sutra-ink-3 bg-sutra-line-2 border border-transparent"}`}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="w-3 h-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                       Party A
                     </button>
-                    <button onClick={() => downloadSummary("b")} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold text-amber-700 bg-amber-bg border border-amber-200 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition-colors" title="Download Party B summary">
+                    <button onClick={() => downloadSummary("b")} disabled={!canDownload} aria-disabled={!canDownload}
+                      title={canDownload ? "Download Party B summary" : noDocsYet ? "Please upload documents first" : "Please run analysis to download documents"}
+                      className={`inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold rounded-lg px-2.5 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${canDownload ? "text-amber-700 bg-amber-bg border border-amber-200 hover:bg-amber-100" : "text-sutra-ink-3 bg-sutra-line-2 border border-transparent"}`}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="w-3 h-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                       Party B
                     </button>
-                    <button onClick={() => downloadSummary("both")} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold text-white bg-navy border-0 rounded-lg px-2.5 py-1.5 hover:bg-navy-dark transition-colors" title="Download both summaries">
+                    <button onClick={() => downloadSummary("both")} disabled={!canDownload} aria-disabled={!canDownload}
+                      title={canDownload ? "Download both summaries" : noDocsYet ? "Please upload documents first" : "Please run analysis to download documents"}
+                      className={`inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold rounded-lg px-2.5 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${canDownload ? "text-white bg-navy hover:bg-navy-dark" : "text-sutra-ink-3 bg-sutra-line-2"}`}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="w-3 h-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                       Both
                     </button>
-                    <button onClick={doAnalyze} disabled={analyzing} className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-3.5 sm:px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark disabled:opacity-70 disabled:cursor-not-allowed flex-none shadow-sm">
+                    <button onClick={doAnalyze} disabled={!canRunAnalysis} aria-disabled={!canRunAnalysis}
+                      title={analyzing ? "Analysis in progress" : noDocsYet ? "Please upload documents first" : "Run the comparative analysis"}
+                      className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-3.5 sm:px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark disabled:opacity-60 disabled:cursor-not-allowed flex-none shadow-sm">
                       {analyzing ? (<><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" className="opacity-25" /><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="24" strokeLinecap="round" /></svg>Processing…</>) : (<><I.Sparkles className="w-4 h-4" />Run Analysis</>)}
                     </button>
                   </div>
                 </div>
-                {a ? (
+                {/* DETAIL-05/-06: prerequisite hint when downloads/analysis are blocked */}
+                {(noDocsYet || (!analyzed && !analyzing)) && (
+                  <div className="flex items-start gap-2 rounded-lg bg-[#FAFBFD] border border-sutra-line-2 px-3.5 py-2.5 text-[12.5px] sm:text-[13px] leading-snug text-sutra-ink-2" role="status">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-navy mt-[1px] flex-none"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
+                    <span>
+                      {noDocsYet
+                        ? "Please upload documents first — add case files in the Documents tab, then run analysis."
+                        : "Please run analysis to generate scores and download party summaries."}
+                    </span>
+                  </div>
+                )}
+                {analyzed ? (
                   <div className="space-y-6">
                     {/* Scores */}
                     <div className="grid grid-cols-2 gap-3 sm:gap-4"><ScoreCard label="Party A" score={a.party_a_strength_score ?? 50} c="navy" /><ScoreCard label="Party B" score={a.party_b_strength_score ?? 50} c="amber" /></div>
@@ -382,16 +477,16 @@ export default function MediationSessionPage() {
                       <p className="text-[15px] sm:text-[16px] font-semibold text-sutra-ink pl-6">{a.dominating_party === "BALANCED" ? "Balanced — no clear advantage" : a.dominating_party || "—"}</p>
                     </div>
 
-                    {/* Party A Summary */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <PartySummary title="Party A — Favorable Points" items={a.party_a_favorable_points} color="navy" type="favorable" />
-                      <PartySummary title="Party A — Weaknesses" items={a.party_a_opposing_allegations} color="navy" type="opposing" />
-                    </div>
-
-                    {/* Party B Summary */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <PartySummary title="Party B — Favorable Points" items={a.party_b_favorable_points} color="amber" type="favorable" />
-                      <PartySummary title="Party B — Weaknesses" items={a.party_b_opposing_allegations} color="amber" type="opposing" />
+                    {/* Party summaries: compare both sides side by side on larger screens. */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                      <div className="space-y-4">
+                        <PartySummary title="Party A — Favorable Points" items={a.party_a_favorable_points} color="navy" type="favorable" />
+                        <PartySummary title="Party A — Weaknesses" items={a.party_a_opposing_allegations} color="navy" type="opposing" />
+                      </div>
+                      <div className="space-y-4">
+                        <PartySummary title="Party B — Favorable Points" items={a.party_b_favorable_points} color="amber" type="favorable" />
+                        <PartySummary title="Party B — Weaknesses" items={a.party_b_opposing_allegations} color="amber" type="opposing" />
+                      </div>
                     </div>
 
                     {/* Allegation Matrix */}
@@ -437,38 +532,38 @@ export default function MediationSessionPage() {
                       </div>
                     )}
 
-                    {/* Similar Cases from Corpus */}
-                    {a.similar_cases && Array.isArray(a.similar_cases) && a.similar_cases.length > 0 && (
-                      <div>
-                        <SectionHeading icon={<I.Scale className="w-4 h-4 text-navy" />} title="Similar Cases from Corpus" />
-                        <div className="space-y-3 pl-6">
-                          {a.similar_cases.map((sc: any, i: number) => (
-                            <div key={i} className="bg-white border border-sutra-line-2 rounded-xl p-4 space-y-2 hover:border-navy/30 transition-colors">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[14px] sm:text-[15px] font-semibold text-sutra-ink truncate">{sc.title || "Untitled Case"}</p>
-                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                    {sc.citation && <span className="text-[11px] sm:text-[12px] font-mono text-navy bg-tint px-2 py-0.5 rounded-md border border-tint-2">{sc.citation}</span>}
-                                    {sc.court && <span className="text-[11px] sm:text-[12px] text-sutra-ink-3">{sc.court}</span>}
-                                    {sc.year && <span className="text-[11px] sm:text-[12px] text-sutra-ink-3">({sc.year})</span>}
-                                    {sc.case_type && <span className="text-[11px] sm:text-[12px] text-sutra-ink-3 bg-slate-50 px-2 py-0.5 rounded-md">{sc.case_type.replace(/_/g, " ")}</span>}
+                    {/* Optional corpus references from researcher/curator-reviewed material. */}
+                    <div>
+                      <SectionHeading icon={<I.Scale className="w-4 h-4 text-navy" />} title="Reference Cases" />
+                      {(() => {
+                        const references = Array.isArray(a.corpus_references) && a.corpus_references.length > 0
+                          ? a.corpus_references
+                          : Array.isArray(a.similar_cases) ? a.similar_cases : [];
+                        return references.length > 0 ? (
+                          <div className="space-y-3 pl-6">
+                            {references.map((sc: any, i: number) => (
+                              <div key={i} className="bg-white border border-sutra-line-2 rounded-xl p-4 space-y-2 hover:border-navy/30 transition-colors">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[14px] sm:text-[15px] font-semibold text-sutra-ink">{sc.title || "Untitled Case"}</p>
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                      {sc.citation && <span className="text-[11px] sm:text-[12px] font-mono text-navy bg-tint px-2 py-0.5 rounded-md border border-tint-2">{sc.citation}</span>}
+                                      {sc.court && <span className="text-[11px] sm:text-[12px] text-sutra-ink-3">{sc.court}</span>}
+                                      {sc.year && <span className="text-[11px] sm:text-[12px] text-sutra-ink-3">({sc.year})</span>}
+                                      <span className="text-[11px] text-sutra-ink-3 bg-slate-50 px-2 py-0.5 rounded-md">Corpus reference</span>
+                                    </div>
                                   </div>
+                                  {typeof sc.similarity === "number" && <span className="text-[11px] sm:text-[12px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex-none">{Math.round(sc.similarity * 100)}% match</span>}
                                 </div>
-                                <span className="text-[11px] sm:text-[12px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex-none">
-                                  {Math.round((sc.similarity || 0) * 100)}% match
-                                </span>
+                                {sc.outcome && <p className="text-[13px] text-sutra-ink-2"><span className="font-semibold text-sutra-ink">Outcome:</span> {sc.outcome}</p>}
+                                {sc.excerpt && <p className="text-[12px] sm:text-[13px] text-sutra-ink-3 leading-relaxed line-clamp-3">{sc.excerpt}</p>}
+                                {sc.pdf_url && <a href={sc.pdf_url} target="_blank" rel="noreferrer" className="inline-flex text-[12px] font-semibold text-navy hover:underline">Open reference PDF</a>}
                               </div>
-                              {sc.outcome && (
-                                <p className="text-[13px] text-sutra-ink-2 pl-0"><span className="font-semibold text-sutra-ink">Outcome:</span> {sc.outcome}</p>
-                              )}
-                              {sc.excerpt && (
-                                <p className="text-[12px] sm:text-[13px] text-sutra-ink-3 leading-relaxed line-clamp-3">{sc.excerpt}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                            ))}
+                          </div>
+                        ) : <p className="pl-6 text-[13px] sm:text-[14px] text-sutra-ink-3">No matching reference cases were found in the corpus for this analysis.</p>;
+                      })()}
+                    </div>
                   </div>
                 ) : analyzing ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-4">
@@ -480,14 +575,34 @@ export default function MediationSessionPage() {
                       <p className="text-[14px] text-sutra-ink-3 mt-1">This usually takes 2-3 minutes. You can navigate to other tabs — we'll notify you when it's ready.</p>
                     </div>
                   </div>
-                ) : <Empty icon={<I.BarChart className="w-7 h-7" />} t="No analysis yet" d='Click "Run Analysis" to generate scores.' />}
+                ) : <Empty icon={<I.BarChart className="w-7 h-7" />} t={noDocsYet ? "No documents yet" : "No analysis yet"} d={noDocsYet ? "Please upload documents first — add case files in the Documents tab." : 'Click "Run Analysis" to generate scores and unlock downloads.'} />}
               </div>
             )}
 
             {/* Settlement */}
-            {tab === "settlement" && (
+            {tab === "settlement" && (analyzed ? (
               <SettlementTab analysis={a} sessionId={sessionId} onRefresh={async () => { try { const r = await mediation.get(sessionId); setSession(r.data); } catch {} }} />
-            )}
+            ) : (
+              // SETTLE-01: settlement creation is locked until comparative analysis has run.
+              <div className="py-10 sm:py-12 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-amber-bg text-amber-700 grid place-items-center mx-auto mb-4 border border-amber-200">
+                  <I.Scale className="w-6 h-6" />
+                </div>
+                <p className="text-[16px] sm:text-[17px] font-semibold text-sutra-ink mb-1.5">Run analysis before settlement</p>
+                <p className="text-[13px] sm:text-[14px] text-sutra-ink-3 max-w-[360px] mx-auto mb-5 leading-relaxed">
+                  {noDocsYet
+                    ? "Upload case files in the Documents tab first — the comparative analysis has to run before you can record settlement notes."
+                    : "The comparative analysis has not run yet. Generate it first so settlement notes build on the parties' analysed positions."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTab(noDocsYet ? "documents" : "analysis")}
+                  className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark shadow-sm"
+                >
+                  {noDocsYet ? (<><I.Upload className="w-4 h-4" />Go to Documents</>) : (<><I.BarChart className="w-4 h-4" />Go to Analysis</>)}
+                </button>
+              </div>
+            ))}
 
             {/* Documents */}
             {tab === "documents" && (
@@ -549,9 +664,31 @@ export default function MediationSessionPage() {
                       </div>
                       <div className="flex items-center gap-2 flex-none">
                         {pendingCount > 0 && <button onClick={uploadAll} className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-3.5 sm:px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark shadow-sm"><I.Upload className="w-4 h-4" />Upload All ({pendingCount})</button>}
-                        <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-2 bg-white text-sutra-ink border border-sutra-line rounded-lg text-[13px] sm:text-[14px] font-semibold px-3.5 sm:px-4 py-2 min-h-[36px] transition-all hover:bg-tint hover:border-navy/30"><I.Plus className="w-4 h-4" />Add Files</button>
                       </div>
                     </div>
+
+                    {/* DOC-02: skippable prompt shown right after a clean upload */}
+                    {uploadNotice && (
+                      <div className="flex items-start justify-between gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3" role="status">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] sm:text-[14px] font-semibold text-green-800">New document uploaded successfully.</p>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[12.5px] sm:text-[13px]">
+                            <button type="button"
+                              onClick={() => { setUploadNotice(false); setTab("analysis"); doAnalyze(); }}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-navy text-white font-semibold px-2.5 py-1.5 transition-colors hover:bg-navy-dark">
+                              <I.Sparkles className="w-3.5 h-3.5" />Generate analysis
+                            </button>
+                            <span className="text-green-800/70">or</span>
+                            <button type="button"
+                              onClick={() => { setUploadNotice(false); fileInputRef.current?.click(); }}
+                              className="font-semibold text-green-800 underline decoration-green-300 underline-offset-2 hover:decoration-green-600">
+                              add more documents
+                            </button>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => setUploadNotice(false)} aria-label="Dismiss" className="flex-none w-7 h-7 rounded-lg grid place-items-center text-green-800/60 hover:text-green-900 hover:bg-green-100 transition-colors"><I.X className="w-4 h-4" /></button>
+                      </div>
+                    )}
                     <input ref={fileInputRef} type="file" multiple accept=".pdf,image/*" className="hidden" onChange={e => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }} />
 
                     {/* Drop zone */}
@@ -673,11 +810,17 @@ export default function MediationSessionPage() {
         <div className="fixed bottom-24 sm:bottom-[76px] right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[400px] h-[min(calc(100vh-140px),560px)] bg-white border border-sutra-line rounded-2xl shadow-2xl shadow-black/10 flex flex-col overflow-hidden animate-in">
           <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-sutra-line bg-white flex-none">
             <span className="w-9 h-9 rounded-full bg-navy text-white grid place-items-center flex-none"><I.Chat className="w-[18px] h-[18px]" /></span>
-            <div className="flex-1 min-w-0"><h4 className="text-[14px] sm:text-[15px] font-bold text-sutra-ink leading-tight">Mediator Chat</h4><p className="text-[11px] sm:text-[12px] text-sutra-ink-3">Ask about this dispute</p></div>
+            <div className="flex-1 min-w-0"><h4 className="text-[14px] sm:text-[15px] font-bold text-sutra-ink leading-tight">Mediator Chat</h4><p className="text-[11px] sm:text-[12px] text-sutra-ink-3">{analyzed ? "Ask about this dispute" : "Unlocks after analysis"}</p></div>
             <button onClick={() => setChatOpen(false)} className="w-8 h-8 rounded-lg grid place-items-center hover:bg-tint transition-colors text-sutra-ink-3"><I.X className="w-4 h-4" /></button>
           </div>
           <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 space-y-2.5">
-            {chatMessages.length === 0 && (<div className="flex flex-col items-center justify-center h-full text-center py-8"><div className="w-12 h-12 rounded-2xl bg-tint text-navy grid place-items-center mb-3 border border-tint-2"><I.Chat className="w-5 h-5" /></div><p className="text-[13px] sm:text-[14px] font-semibold text-sutra-ink mb-0.5">Start a conversation</p><p className="text-[12px] text-sutra-ink-3">Ask about parties, disputes, or settlement.</p></div>)}
+            {!analyzed && (
+              <div className="flex items-start gap-2 rounded-xl bg-amber-bg border border-amber-200 px-3 py-2.5 text-[12px] sm:text-[12.5px] leading-snug text-amber-800">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-amber-600 mt-[1px] flex-none"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
+                <span>Chat is locked until the comparative analysis completes. {noDocsYet ? "Upload documents first, then run analysis." : "Run analysis from the Analysis tab to unlock."}</span>
+              </div>
+            )}
+            {chatMessages.length === 0 && (<div className="flex flex-col items-center justify-center h-full text-center py-8"><div className="w-12 h-12 rounded-2xl bg-tint text-navy grid place-items-center mb-3 border border-tint-2"><I.Chat className="w-5 h-5" /></div><p className="text-[13px] sm:text-[14px] font-semibold text-sutra-ink mb-0.5">{analyzed ? "Start a conversation" : "Mediator chat"}</p><p className="text-[12px] text-sutra-ink-3">{analyzed ? "Ask about parties, disputes, or settlement." : "Ask questions once the dispute has been analysed."}</p></div>)}
             {chatMessages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "user" ? <div className="max-w-[85%] px-3.5 py-2.5 rounded-2xl text-[13px] sm:text-[14px] leading-relaxed bg-navy text-white rounded-br-md">{m.content}</div>
@@ -689,8 +832,8 @@ export default function MediationSessionPage() {
           </div>
           <div className="px-4 sm:px-5 py-3 border-t border-sutra-line bg-white flex-none">
             <div className="flex gap-2">
-              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doChat(); }} placeholder="Ask about this dispute…" className="flex-1 min-h-[42px] border border-sutra-line rounded-xl px-4 font-[inherit] text-[13px] sm:text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3" />
-              <button onClick={doChat} disabled={!chatInput.trim() || chatLoading} className="w-10 h-10 rounded-xl bg-navy text-white grid place-items-center flex-none transition-all hover:bg-navy-dark disabled:opacity-40 disabled:cursor-not-allowed"><I.Send className="w-[18px] h-[18px]" /></button>
+              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doChat(); }} disabled={!analyzed} placeholder={analyzed ? "Ask about this dispute…" : "Chat unlocks after analysis"} aria-label="Ask about this dispute" className="flex-1 min-h-[42px] border border-sutra-line rounded-xl px-4 font-[inherit] text-[13px] sm:text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3 disabled:bg-sutra-line-2/50 disabled:cursor-not-allowed" />
+              <button onClick={doChat} disabled={!analyzed || !chatInput.trim() || chatLoading} aria-disabled={!analyzed || !chatInput.trim() || chatLoading} title={analyzed ? "Send message" : "Chat unlocks after analysis"} className="w-10 h-10 rounded-xl bg-navy text-white grid place-items-center flex-none transition-all hover:bg-navy-dark disabled:opacity-40 disabled:cursor-not-allowed"><I.Send className="w-[18px] h-[18px]" /></button>
             </div>
           </div>
         </div>
@@ -722,8 +865,9 @@ export default function MediationSessionPage() {
 }
 
 /* ─── Shared ─── */
-function PartyCard({ label, name, initial }: { label: string; name: string; initial: string }) {
-  return <div className="flex items-center gap-2.5 sm:gap-3 min-w-0"><span className="flex-none w-9 h-9 sm:w-[40px] sm:h-[40px] rounded-full bg-tint-2 text-navy grid place-items-center font-bold text-[14px] sm:text-[16px] border border-[#CFE0F0]">{initial}</span><div className="min-w-0"><div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-sutra-ink-3">{label}</div><div className="text-[15px] sm:text-[16px] font-semibold text-sutra-ink leading-tight truncate">{name}</div></div></div>;
+function PartyCard({ label, name, initial, align = "left" }: { label: string; name: string; initial: string; align?: "left" | "right" }) {
+  const right = align === "right";
+  return <div className={`flex items-center gap-2.5 sm:gap-3 min-w-0 ${right ? "flex-row-reverse text-right" : ""}`}><span className="flex-none w-9 h-9 sm:w-[40px] sm:h-[40px] rounded-full bg-tint-2 text-navy grid place-items-center font-bold text-[14px] sm:text-[16px] border border-[#CFE0F0]">{initial}</span><div className="min-w-0"><div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-sutra-ink-3">{label}</div><div className="text-[15px] sm:text-[16px] font-semibold text-sutra-ink leading-tight truncate">{name}</div></div></div>;
 }
 function PosCard({ label, val, c }: { label: string; val?: string; c: "navy" | "amber" }) {
   return <div className="bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-3.5"><div className="flex items-center gap-1.5 mb-1.5"><span className={`w-2 h-2 rounded-full ${c === "navy" ? "bg-navy" : "bg-amber-400"}`} /><span className="text-[11px] sm:text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">{label}</span></div><p className="text-[14px] sm:text-[15px] text-sutra-ink leading-relaxed">{val || "Awaiting analysis."}</p></div>;
@@ -734,9 +878,25 @@ function ScoreCard({ label, score, c }: { label: string; score: number; c: "navy
 function MetaChip({ icon, label }: { icon: React.ReactNode; label: string }) {
   return <span className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-medium text-sutra-ink-2 bg-[#FAFBFD] border border-sutra-line-2 rounded-full py-1.5 px-3">{icon}{label}</span>;
 }
-function StatusBadge({ status }: { status: string }) {
-  const ok = status === "analyzed" || status === "completed" || status === "in_analysis" || status === "active";
-  return <span className={`inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold px-2.5 py-1 rounded-full ${ok ? "bg-green-bg text-green-ink" : "bg-amber-bg text-amber-ink"}`}><span className={`w-1.5 h-1.5 rounded-full flex-none ${ok ? "bg-green-dot" : "bg-amber-dot"}`} />{ok ? "Complete" : "Pending"}</span>;
+function StatusBadge({ session }: { session: MaybeSession }) {
+  const st = getSessionStage(session);
+  const tone =
+    st.tone === "green"
+      ? "bg-green-bg text-green-ink"
+      : st.tone === "slate"
+        ? "bg-sutra-line-2 text-sutra-ink-2"
+        : st.tone === "navy"
+          ? "bg-tint text-navy"
+          : "bg-amber-bg text-amber-ink";
+  const dot =
+    st.tone === "green"
+      ? "bg-green-dot"
+      : st.tone === "slate"
+        ? "bg-sutra-ink-3"
+        : st.tone === "navy"
+          ? "bg-navy"
+          : "bg-amber-dot";
+  return <span className={`inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold px-2.5 py-1 rounded-full ${tone}`}><span className={`w-1.5 h-1.5 rounded-full flex-none ${dot}`} />{st.label}</span>;
 }
 function Empty({ icon, t, d }: { icon: React.ReactNode; t: string; d: string }) {
   return <div className="text-center py-10 sm:py-12"><div className="w-14 h-14 rounded-2xl bg-tint text-navy grid place-items-center mx-auto mb-3 border border-tint-2">{icon}</div><p className="text-[15px] sm:text-[16px] font-semibold text-sutra-ink mb-1">{t}</p><p className="text-[13px] sm:text-[14px] text-sutra-ink-3 max-w-[300px] mx-auto">{d}</p></div>;
@@ -777,7 +937,7 @@ function TimelineTab({ session, analysis, docs }: { session: any; analysis: any;
   if (analysis?.analyzed_at) {
     events.push({
       date: new Date(analysis.analyzed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-      label: "AI Analysis Complete",
+      label: "Comparative Analysis Complete",
       desc: `Party A scored ${analysis.party_a_strength_score ?? "—"}/100, Party B scored ${analysis.party_b_strength_score ?? "—"}/100. Dominant: ${analysis.dominating_party === "BALANCED" ? "Balanced" : analysis.dominating_party || "—"}.`,
       color: "green",
     });
@@ -788,7 +948,7 @@ function TimelineTab({ session, analysis, docs }: { session: any; analysis: any;
     events.push({
       date: new Date(firstChat.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
       label: "Mediator Chat Started",
-      desc: `${session.chat_messages.length} question${session.chat_messages.length > 1 ? "s" : ""} asked via AI chat.`,
+      desc: `${session.chat_messages.length} question${session.chat_messages.length > 1 ? "s" : ""} asked in Mediator Chat.`,
       color: "purple",
     });
   }
@@ -806,7 +966,8 @@ function TimelineTab({ session, analysis, docs }: { session: any; analysis: any;
     <div className="space-y-4">
       <h3 className="flex items-center gap-2 text-[15px] sm:text-[17px] font-bold"><I.Clock className="w-5 h-5 text-navy" />Session Timeline</h3>
       {events.length > 0 ? (
-        <div className="max-h-[460px] overflow-y-auto pr-2 -mr-2">
+        // DOC-03: viewport-derived height so the timeline scrolls independently of page layout.
+        <div className="h-[min(calc(100dvh-400px),560px)] min-h-[240px] overflow-y-auto pr-2 -mr-2" style={{ overscrollBehavior: "contain" }}>
           <div className="relative">
             {/* Continuous vertical line behind all dots */}
             <div className="absolute left-[9px] top-[10px] bottom-[10px] w-0.5 bg-sutra-line" />
@@ -856,6 +1017,7 @@ function PartySummary({ title, items, color, type }: { title: string; items: any
 
 function SettlementTab({ analysis, sessionId, onRefresh }: { analysis: any; sessionId: number; onRefresh: () => Promise<void> }) {
   const [notes, setNotes] = useState(analysis?.settlement_notes || "");
+  const [mode, setMode] = useState<"write" | "preview">((analysis?.settlement_notes || "").trim() ? "preview" : "write");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -870,11 +1032,40 @@ function SettlementTab({ analysis, sessionId, onRefresh }: { analysis: any; sess
     setSaving(false);
   };
 
+  const seg = (active: boolean) =>
+    `px-3 py-1.5 text-[12px] sm:text-[13px] font-semibold rounded-lg transition-colors border ${
+      active ? "bg-navy text-white border-navy" : "text-sutra-ink-2 bg-white border-sutra-line hover:border-navy/30 hover:bg-tint"
+    }`;
+
   return (
-    <div className="space-y-6">
-      <h3 className="flex items-center gap-2 text-[15px] sm:text-[17px] font-bold"><I.Scale className="w-5 h-5 text-navy" />Settlement Notes</h3>
-      <p className="text-[14px] sm:text-[15px] text-sutra-ink-3">Document settlement proposals, common ground, and agreement drafts.</p>
-      <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Write settlement notes here…" className="w-full min-h-[200px] border border-sutra-line rounded-xl px-4 py-3 font-[inherit] text-[14px] sm:text-[15px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3 resize-y" />
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="flex items-center gap-2 text-[15px] sm:text-[17px] font-bold"><I.Scale className="w-5 h-5 text-navy" />Settlement Notes</h3>
+          <p className="text-[13px] sm:text-[14px] text-sutra-ink-3 mt-0.5">Document settlement proposals, common ground, and agreement drafts. Markdown is supported.</p>
+        </div>
+        <div className="flex items-center gap-1.5" role="group" aria-label="Editor mode">
+          <button type="button" onClick={() => setMode("write")} className={seg(mode === "write")}>Write</button>
+          <button type="button" onClick={() => setMode("preview")} className={seg(mode === "preview")}>Preview</button>
+        </div>
+      </div>
+
+      {mode === "write" ? (
+        <RichSettlementEditor value={notes} onChange={setNotes} />
+      ) : (
+        <div className="min-h-[240px] max-h-[540px] overflow-y-auto border border-sutra-line rounded-xl bg-[#FAFBFD] px-4 py-3.5">
+          {notes.trim() ? (
+            notes.trimStart().startsWith("<") ? (
+              <div className="text-[14px] sm:text-[15px] text-sutra-ink leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeRichText(notes) }} />
+            ) : (
+              <div className="chat-markdown text-[14px] sm:text-[15px] text-sutra-ink leading-relaxed"><Markdown>{notes}</Markdown></div>
+            )
+          ) : (
+            <p className="text-[13px] sm:text-[14px] text-sutra-ink-3">Nothing written yet — switch to Write to start.</p>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark disabled:opacity-50 flex-none shadow-sm">
           {saving ? "Saving…" : saved ? "✓ Saved" : "Save Notes"}
@@ -883,4 +1074,86 @@ function SettlementTab({ analysis, sessionId, onRefresh }: { analysis: any; sess
       </div>
     </div>
   );
+}
+
+function RichSettlementEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [, forceRender] = useState(0);
+  const editor = useEditor({
+    extensions: [StarterKit, Underline],
+    content: value,
+    immediatelyRender: false,
+    onUpdate: ({ editor: instance }) => onChange(instance.getHTML()),
+  });
+
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) editor.commands.setContent(value, { emitUpdate: false });
+  }, [editor, value]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const refreshToolbar = () => forceRender((version) => version + 1);
+    editor.on("transaction", refreshToolbar);
+    editor.on("selectionUpdate", refreshToolbar);
+    return () => {
+      editor.off("transaction", refreshToolbar);
+      editor.off("selectionUpdate", refreshToolbar);
+    };
+  }, [editor]);
+
+  if (!editor) return null;
+
+  const button = (title: string, Icon: typeof Bold, action: () => void, active = false) => (
+    <button type="button" title={title} aria-label={title} onMouseDown={(event) => event.preventDefault()} onClick={action} className={`grid h-8 w-8 place-items-center rounded-md transition-colors cursor-pointer ${active ? "bg-navy text-white" : "text-sutra-ink-2 hover:bg-tint hover:text-navy"}`}>
+      <Icon className="h-4 w-4" strokeWidth={2} />
+    </button>
+  );
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-sutra-line focus-within:border-navy focus-within:ring-2 focus-within:ring-navy/10">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-sutra-line-2 bg-[#FAFBFD] p-1.5" role="toolbar" aria-label="Settlement formatting">
+        {button("Bold", Bold, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
+        {button("Italic", Italic, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"))}
+        {button("Underline", UnderlineIcon, () => editor.chain().focus().toggleUnderline().run(), editor.isActive("underline"))}
+        <span className="mx-1 h-5 w-px bg-sutra-line-2" aria-hidden="true" />
+        {button("Heading 2", Heading2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 }))}
+        {button("Bulleted list", List, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}
+        {button("Numbered list", ListOrdered, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"))}
+        {button("Quote", Quote, () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote"))}
+        <span className="mx-1 h-5 w-px bg-sutra-line-2" aria-hidden="true" />
+        {button("Clear formatting", RemoveFormatting, () => editor.chain().focus().clearNodes().unsetAllMarks().run())}
+        {button("Deselect text", MousePointer2, () => editor.commands.setTextSelection(editor.state.selection.to))}
+        {button("Undo", Undo2, () => editor.chain().focus().undo().run())}
+        {button("Redo", Redo2, () => editor.chain().focus().redo().run())}
+      </div>
+      <EditorContent editor={editor} className="rich-settlement-editor min-h-[240px] max-h-[540px] overflow-y-auto px-4 py-3 text-[14px] sm:text-[15px] text-sutra-ink leading-relaxed outline-none" />
+    </div>
+  );
+}
+
+function sanitizeRichText(html: string) {
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
+    .replace(/\s(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, "");
+}
+
+function normalizeChatAnswer(payload: unknown): string {
+  let value = payload;
+  for (let attempt = 0; attempt < 2 && typeof value === "string"; attempt += 1) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      value = parsed;
+    } catch {
+      break;
+    }
+  }
+  if (Array.isArray(value)) value = value[0];
+  if (value && typeof value === "object" && "answer" in value) {
+    const result = value as { answer?: unknown; follow_up?: unknown };
+    const answer = typeof result.answer === "string" ? result.answer : "";
+    const followUp = typeof result.follow_up === "string" ? result.follow_up : "";
+    if (answer || followUp) return [answer, followUp].filter(Boolean).join("\n\n");
+  }
+  return typeof value === "string" && value.trim() ? value : "No response.";
 }

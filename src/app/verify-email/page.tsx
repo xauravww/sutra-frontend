@@ -8,16 +8,23 @@ import Button, { Spinner } from "@/components/ui/Button";
 import { useVerifyEmailForm } from "@/hooks/useVerifyEmailForm";
 
 function VerifyEmailForm() {
-  const { email, otp, setOtp, devOtp, error, success, loading, sending, cooldown, sendOtp, verify } =
+  const { email, reason, otp, setOtp, devOtp, error, success, loading, sending, cooldown, sendOtp, verify } =
     useVerifyEmailForm();
 
   return (
     <div className="w-full max-w-[380px] rounded-xl border border-sutra-line bg-white p-5 sm:p-7">
       <h2 className="text-[15px] font-bold text-sutra-ink mb-1">Verify your email</h2>
-      <p className="text-[13px] text-sutra-ink-3 mb-5">
+      <p className="text-[13px] text-sutra-ink-3 mb-4">
         Enter the 6-digit code sent to{" "}
         <span className="font-semibold text-sutra-ink-2">{email || "your email"}</span>
       </p>
+
+      {reason === "pending" && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-[12.5px] leading-snug text-amber-800">
+          Your account was registered but not yet verified. A fresh code was emailed to you — if it has
+          expired, use <span className="font-semibold">Resend OTP</span> below.
+        </div>
+      )}
 
       <div className="mb-4">
         <Input

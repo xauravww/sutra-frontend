@@ -13,6 +13,10 @@ const publicSans = Public_Sans({
 export const metadata: Metadata = {
   title: "Sutra · Legal Intelligence Workspace",
   description: "AI-assisted case analysis for advocates and the judiciary",
+  icons: {
+    icon: "/logo-mark.png",
+    apple: "/logo-mark.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

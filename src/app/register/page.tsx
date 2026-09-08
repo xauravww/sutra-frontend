@@ -4,6 +4,7 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import Input from "@/components/ui/Input";
 import PasswordInput from "@/components/ui/PasswordInput";
+import PasswordStrength from "@/components/ui/PasswordStrength";
 import Radio from "@/components/ui/Radio";
 import Button from "@/components/ui/Button";
 import { useRegisterForm, type RegisterRole } from "@/hooks/useRegisterForm";
@@ -28,6 +29,11 @@ export default function RegisterPage() {
           onSubmit={submit}
           className="w-full max-w-[380px] rounded-xl border border-sutra-line bg-white p-5 sm:p-7"
         >
+          <h1 className="text-[17px] font-bold text-sutra-ink mb-1">Create Account</h1>
+          <p className="text-[12.5px] text-sutra-ink-3 mb-5">
+            Choose your role to get started.
+          </p>
+
           <fieldset>
             <legend className="text-[13px] font-semibold text-sutra-ink-2 mb-2">I Am</legend>
             <div className="flex flex-wrap gap-x-4 gap-y-2 mb-2">
@@ -44,8 +50,8 @@ export default function RegisterPage() {
             </div>
             <p className="text-[11px] text-sutra-ink-3 mb-5">
               {role === "judiciary"
-                ? "Judicial Case Intelligence — upload & analyze case files"
-                : "Mediation Sessions — facilitate party negotiations"}
+                ? "Upload and analyze case files with judicial case intelligence"
+                : "Facilitate party negotiations through mediation sessions"}
             </p>
           </fieldset>
 
@@ -69,12 +75,25 @@ export default function RegisterPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+          <PasswordStrength value={password} />
 
-          {error && <p className="mt-3 text-[13px] text-red-700">{error}</p>}
+          {error && (
+            <div className="mt-3">
+              <p className="text-[13px] text-red-700">{error}</p>
+              {error.toLowerCase().includes("already exists") && (
+                <Link
+                  href="/login"
+                  className="text-[13px] font-semibold text-navy hover:underline mt-1 inline-block"
+                >
+                  Try signing in instead →
+                </Link>
+              )}
+            </div>
+          )}
 
           <div className="mt-5 flex justify-center">
-            <Button type="submit" loading={loading} className="w-full sm:w-auto">
-              {loading ? "Creating account..." : "Register"}
+            <Button type="submit" loading={loading} className="w-full sm:w-auto whitespace-nowrap">
+              {loading ? "Creating Account..." : "Create Account"}
             </Button>
           </div>
 

@@ -805,12 +805,13 @@ export interface NotificationStats {
 }
 
 export const notifications = {
-  list: (params: { limit?: number; offset?: number } = {}) => {
+  list: (params: { limit?: number; offset?: number; unread_only?: boolean } = {}) => {
     const qs = new URLSearchParams();
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params.unread_only !== undefined) qs.set("unread_only", String(params.unread_only));
     const s = qs.toString();
-    return request<{ success: boolean; data: AppNotification[] }>(
+    return request<{ success: boolean; data: { notifications: AppNotification[]; total: number; has_more: boolean } }>(
       `/api/v1/notifications${s ? `?${s}` : ""}`
     );
   },
