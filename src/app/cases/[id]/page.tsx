@@ -13,6 +13,14 @@ import Markdown from "react-markdown";
 type Tab = "overview" | "parties" | "witnesses" | "evidence" | "chronology" | "research" | "pages" | "police" | "courts";
 type DocumentAnalysisState = "pending" | "analyzing" | "complete" | "failed";
 
+function isCorpusAuthority(hit: CorpusSearchHit): boolean {
+  const type = String(hit.case_type || "").toLowerCase();
+  const title = String(hit.title || "").toLowerCase().replace(/[^a-z]/g, "");
+  return type === "constitution" || type.includes("statute") || type.includes("act") ||
+    title.includes("constitution") || title.includes("coonstitution") || title.includes("constitutionaltext") ||
+    title.includes("bareact") || title.includes("statutebook") || title.includes("legalcode");
+}
+
 const SAMPLE_CASES = [
   {
     id: 1,
@@ -258,6 +266,7 @@ export default function CaseDetailPage() {
   const [documentAnalysis, setDocumentAnalysis] = useState<Record<string, DocumentAnalysisState>>({});
   const [analysisChoiceOpen, setAnalysisChoiceOpen] = useState(false);
   const [relatedCorpusCases, setRelatedCorpusCases] = useState<CorpusSearchHit[]>([]);
+  const [authorityCorpusSources, setAuthorityCorpusSources] = useState<CorpusSearchHit[]>([]);
   const [relatedCorpusLoading, setRelatedCorpusLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -271,6 +280,10 @@ export default function CaseDetailPage() {
   const [viewerDoc, setViewerDoc] = useState<JudicialDocument | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
+
+  /* ─── Inline knowledge-base source viewer (page-accurate references) ─── */
+  const [sourceViewer, setSourceViewer] = useState<{ url: string; title: string } | null>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
 
   /* ─── Case Assistant chat ─── */
   const [chatOpen, setChatOpen] = useState(false);
@@ -405,7 +418,9 @@ export default function CaseDetailPage() {
         const unique = hits.filter((hit, index, all) =>
           all.findIndex((candidate) => candidate.document_id === hit.document_id) === index
         );
-        setRelatedCorpusCases(unique.slice(0, 3));
+        setAuthorityCorpusSources(unique.filter((hit) => isCorpusAuthority(hit)).slice(0, 3));
+        const caseOnly = unique.filter((hit) => !isCorpusAuthority(hit));
+        setRelatedCorpusCases(caseOnly.slice(0, 3));
       })
       .catch(() => {
         if (!cancelled) setRelatedCorpusCases([]);
@@ -604,10 +619,46 @@ export default function CaseDetailPage() {
     setViewerUrl(null);
   };
 
+  /* Open a published knowledge-base source in the inline viewer, jumping to an
+     exact page when one is known. Page numbers are anchored to the *ingested*
+     PDF, so we view that presigned copy; if it is missing we fall back to the
+     external source_url, and if neither exists we surface an error. A fresh
+     presigned URL is fetched each open. */
+  const openSource = async (documentId: number, page?: number | null) => {
+    setSourceViewer({ url: "", title: "Loading source…" });
+    setSourceLoading(true);
+    try {
+      const src = await corpusService.getPublishedSource(documentId);
+      const base = src.pdf_url ?? src.source_url;
+      if (!base) {
+        toast("This source has no viewable document.", "error");
+        setSourceViewer(null);
+        return;
+      }
+      setSourceViewer({
+        url: page ? `${base}#page=${page}` : base,
+        title: src.title || src.citation || "Source",
+      });
+      void corpusService
+        .recordSourceClick({ query: caseId ? `case ${caseId} reference` : "reference", document_id: documentId, result_count: 1 })
+        .catch(() => {});
+    } catch {
+      toast("Could not open this source.", "error");
+      setSourceViewer(null);
+    } finally {
+      setSourceLoading(false);
+    }
+  };
+
+  const closeSource = () => setSourceViewer(null);
+
   /* Esc closes the viewer. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeViewer();
+      if (e.key === "Escape") {
+        closeViewer();
+        closeSource();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -728,6 +779,7 @@ export default function CaseDetailPage() {
   const isProcessing = caseData.status === "processing" || analyzing;
   const isStructured = caseData.status === "structured";
   const allDocumentsAnalyzed = hasDocs && documents.every((doc) => (doc.page_summaries?.length ?? 0) > 0);
+  const visibleRelatedCorpusCases = relatedCorpusCases.filter((hit) => !isCorpusAuthority(hit));
 
   const listLength = (v: unknown) => (Array.isArray(v) ? v.length : 0);
   const counts: Record<Tab, number> = {
@@ -741,24 +793,58 @@ export default function CaseDetailPage() {
     police: caseData.police_station ? 1 : 0,
     courts: listLength(caseData.court_history),
   };
-  const getDocumentAnalysisState = (doc: JudicialDocument): DocumentAnalysisState =>
-    documentAnalysis[doc.id]
-      ?? (isProcessing
-        ? "analyzing"
-        : isStructured || (doc.page_summaries?.length ?? 0) > 0
-        ? "complete"
-        : caseData.status === "failed"
-        ? "failed"
-        : "pending");
+  // True only while a case-level structure run is in flight and nothing has
+  // been written yet — first analysis after upload, or a retry after a
+  // failure. Shows an "Analyzing…" panel in every section tab (mirroring the
+  // per-document spinner rows) instead of a misleading "Run analysis" empty
+  // state. A regeneration keeps its already-populated content, so the tabs
+  // stay visible then and only the top analysis bar shows the run.
+  const caseHasStructuredContent =
+    !!caseData.case_brief ||
+    listLength(caseData.parties) > 0 ||
+    listLength(caseData.accused) > 0 ||
+    listLength(caseData.witnesses) > 0 ||
+    listLength(caseData.evidence) > 0 ||
+    listLength(caseData.chronology) > 0 ||
+    listLength(caseData.legal_provisions) > 0 ||
+    listLength(caseData.court_history) > 0;
+  const showAnalysisLoading = isProcessing && !isStructured && !caseHasStructuredContent;
+  const getDocumentAnalysisState = (doc: JudicialDocument): DocumentAnalysisState => {
+    const hasSummaries = (doc.page_summaries?.length ?? 0) > 0;
+    const mapped = documentAnalysis[doc.id];
+    // A live per-doc operation (isProcessing false) wins so the in-flight
+    // spinner shows. Otherwise already-summarised docs are "complete" even
+    // while the case-level structure is regenerating or after a reload mid-run
+    // (the mount-time map marks docs analyzing/pending even though they're done).
+    if (mapped && (!isProcessing || !hasSummaries)) return mapped;
+    if (hasSummaries || isStructured) return "complete";
+    if (isProcessing) return "analyzing";
+    if (caseData.status === "failed") return "failed";
+    return "pending";
+  };
   const retryableDocuments = documents.filter((doc) => {
     const state = getDocumentAnalysisState(doc);
     return state === "failed" || state === "pending";
   });
+  // Gate for the Run Case Analysis button. The button is always visible but
+  // stays disabled (with a tooltip) until at least one document has per-page
+  // summaries — only then does running case analysis make sense, since it
+  // builds the section cards from those summaries.
+  const anyDocumentAnalyzed = documents.some((doc) => getDocumentAnalysisState(doc) === "complete");
+  const analysisTooltip = isProcessing
+    ? "Analysis is running — you can leave this page."
+    : !anyDocumentAnalyzed
+    ? "Please upload and analyze at least one document to generate the summary of these cards."
+    : "";
   const runSelectedAnalysis = async (scope: "all" | "failed") => {
     setAnalysisChoiceOpen(false);
     if (scope === "all") {
-      setDocumentAnalysis(Object.fromEntries(documents.map((doc) => [doc.id, "pending" as DocumentAnalysisState])));
-      for (const doc of documents) await analyzeDocument(doc);
+      // Documents that already have page summaries are kept as-is — never a
+      // full re-analysis. Only pending/failed docs get analyzed again, then the
+      // structure (the cards) is regenerated.
+      const toProcess = documents.filter((doc) => getDocumentAnalysisState(doc) !== "complete");
+      setDocumentAnalysis(Object.fromEntries(toProcess.map((doc) => [doc.id, "pending" as DocumentAnalysisState])));
+      for (const doc of toProcess) await analyzeDocument(doc);
       await doAnalyze();
       return;
     }
@@ -1076,7 +1162,10 @@ export default function CaseDetailPage() {
         </div>
 
         {/* Analysis bar */}
-        {hasDocs && (
+        {/* Analysis bar — always visible so the Run Case Analysis button is
+            never hidden; it is disabled with a tooltip until at least one
+            document has been analyzed. */}
+        {(
           <div className="flex items-center gap-3 flex-wrap bg-white border border-sutra-line rounded-2xl px-4 sm:px-5 py-3.5 mb-5 sm:mb-6">
             <div className="flex items-center gap-2.5 min-w-0">
               <span
@@ -1111,26 +1200,38 @@ export default function CaseDetailPage() {
                     ? "Sections below are populated from your documents"
                     : allDocumentsAnalyzed && caseData.status === "failed"
                     ? "All documents are analyzed. Run case analysis to populate the case sections."
+                    : !anyDocumentAnalyzed
+                    ? "Analyze at least one document first — the button above unlocks once a summary exists."
                     : "Run analysis to populate the case sections"}
                 </p>
               </div>
             </div>
             <span className="flex-1" />
-            <button
-              onClick={() => setAnalysisChoiceOpen(true)}
-              disabled={isProcessing}
-              className="inline-flex items-center gap-2 bg-navy text-white rounded-xl text-[14px] font-semibold px-4 py-2.5 min-h-[44px] transition-colors hover:bg-navy-dark disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isProcessing ? (
-                <Spinner className="w-4 h-4" />
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                  <path d="M21 3v6h-6" />
-                </svg>
+            <span className="relative inline-flex group">
+              <button
+                onClick={() => setAnalysisChoiceOpen(true)}
+                disabled={isProcessing || !anyDocumentAnalyzed}
+                className="inline-flex items-center gap-2 bg-navy text-white rounded-xl text-[14px] font-semibold px-4 py-2.5 min-h-[44px] transition-colors hover:bg-navy-dark disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? (
+                  <Spinner className="w-4 h-4" />
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                    <path d="M21 3v6h-6" />
+                  </svg>
+                )}
+                {isProcessing ? "Analyzing…" : isStructured ? "Regenerate" : "Run Case Analysis"}
+              </button>
+              {analysisTooltip && (
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 whitespace-normal text-center max-w-[280px] rounded-lg bg-navy px-3 py-1.5 text-[12px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 shadow-lg"
+                >
+                  {analysisTooltip}
+                </span>
               )}
-              {isProcessing ? "Analyzing…" : isStructured ? "Regenerate" : "Run Case Analysis"}
-            </button>
+            </span>
           </div>
         )}
 
@@ -1154,15 +1255,19 @@ export default function CaseDetailPage() {
                 {[1, 2].map((item) => <div key={item} className="h-[62px] rounded-xl bg-slate-50 border border-sutra-line animate-pulse" />)}
               </div>
             ) : (
-              relatedCorpusCases.length > 0 ? (
+              visibleRelatedCorpusCases.length > 0 ? (
                 <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3">
-                  {relatedCorpusCases.map((reference) => {
-                  const source = reference.pdf_url || reference.source_url;
+                  {visibleRelatedCorpusCases.map((reference) => {
+                  // Storage URLs are private; prefer the source's official URL
+                  // so users never hit a raw Wasabi AccessDenied XML response.
+                  const source = reference.source_url;
                   return (
                     <article key={reference.document_id} className="rounded-xl border border-sutra-line-2 bg-slate-50/70 p-3.5 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="text-[13.5px] font-semibold text-sutra-ink leading-snug line-clamp-2">{reference.title || "Untitled judgment"}</h3>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 flex-none">Corpus</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 flex-none">
+                          Corpus case
+                        </span>
                       </div>
                       <p className="text-[11.5px] text-sutra-ink-3 mt-2 line-clamp-1">
                         {[reference.citation, reference.court, reference.year].filter(Boolean).join(" · ") || "Published reference judgment"}
@@ -1172,7 +1277,7 @@ export default function CaseDetailPage() {
                           href={source}
                           target="_blank"
                           rel="noreferrer"
-                          onClick={() => void corpusService.recordSourceClick({ query: caseData.title, document_id: reference.document_id, result_count: relatedCorpusCases.length })}
+                          onClick={() => void corpusService.recordSourceClick({ query: caseData.title, document_id: reference.document_id, result_count: visibleRelatedCorpusCases.length })}
                           className="inline-flex items-center gap-1 mt-2.5 text-[12px] font-semibold text-navy hover:underline cursor-pointer"
                         >
                           Open source
@@ -1185,11 +1290,7 @@ export default function CaseDetailPage() {
                   );
                   })}
                 </div>
-              ) : (
-                <p className="rounded-xl border border-dashed border-sutra-line-2 bg-slate-50/70 px-3.5 py-3 text-[13px] text-sutra-ink-3">
-                  No matching published corpus cases were found for this case yet.
-                </p>
-              )
+              ) : null
             )}
           </section>
         )}
@@ -1343,46 +1444,70 @@ export default function CaseDetailPage() {
               ref={tabPanelRef}
               className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 min-h-[240px] sm:min-h-[300px] [overflow-wrap:anywhere]"
             >
-              {activeTab === "overview" && <OverviewTab data={caseData} onGenerate={() => void doAnalyze()} />}
-              {activeTab === "parties" && (
-                <PartiesTab
-                  data={caseData}
-                  highlightIndex={highlight?.tab === "parties" ? highlight.index : null}
-                />
-              )}
-              {activeTab === "witnesses" && (
-                <WitnessesTab
-                  data={caseData}
-                  highlightIndex={highlight?.tab === "witnesses" ? highlight.index : null}
-                />
-              )}
-              {activeTab === "evidence" && (
-                <EvidenceTab
-                  data={caseData}
-                  highlightIndex={highlight?.tab === "evidence" ? highlight.index : null}
-                />
-              )}
-              {activeTab === "chronology" && (
-                <ChronologyTab
-                  data={caseData}
-                  highlightIndex={highlight?.tab === "chronology" ? highlight.index : null}
-                />
-              )}
-              {activeTab === "research" && (
-                <ResearchTab
-                  data={caseData}
-                  highlightIndex={highlight?.tab === "research" ? highlight.index : null}
-                />
-              )}
-              {activeTab === "pages" && (
-                <PagesTab caseId={caseId} documents={documents} importantPages={caseData.important_pages} />
-              )}
-              {activeTab === "police" && <PoliceTab data={caseData} />}
-              {activeTab === "courts" && (
-                <CourtsTab
-                  data={caseData}
-                  highlightIndex={highlight?.tab === "courts" ? highlight.index : null}
-                />
+              {showAnalysisLoading ? (
+                <div
+                  className="flex flex-col items-center justify-center py-14 sm:py-20 text-center"
+                  role="status"
+                  aria-live="polite"
+                  aria-busy="true"
+                >
+                  <Spinner className="w-8 h-8 text-navy" />
+                  <p className="mt-3 text-[15px] font-semibold text-sutra-ink">
+                    Analyzing case documents…
+                  </p>
+                  <p className="mt-1 text-[13px] text-sutra-ink-3 max-w-[340px]">
+                    {activeTab === "overview"
+                      ? "Building the case brief from your documents."
+                      : "Extracting this section from your documents."}{" "}
+                    You can leave this page — the tabs update automatically.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {activeTab === "overview" && <OverviewTab data={caseData} onGenerate={() => void doAnalyze()} />}
+                  {activeTab === "parties" && (
+                    <PartiesTab
+                      data={caseData}
+                      highlightIndex={highlight?.tab === "parties" ? highlight.index : null}
+                    />
+                  )}
+                  {activeTab === "witnesses" && (
+                    <WitnessesTab
+                      data={caseData}
+                      highlightIndex={highlight?.tab === "witnesses" ? highlight.index : null}
+                    />
+                  )}
+                  {activeTab === "evidence" && (
+                    <EvidenceTab
+                      data={caseData}
+                      highlightIndex={highlight?.tab === "evidence" ? highlight.index : null}
+                    />
+                  )}
+                  {activeTab === "chronology" && (
+                    <ChronologyTab
+                      data={caseData}
+                      highlightIndex={highlight?.tab === "chronology" ? highlight.index : null}
+                    />
+                  )}
+                  {activeTab === "research" && (
+                    <ResearchTab
+                      data={caseData}
+                      authoritySources={authorityCorpusSources}
+                      onOpenSource={openSource}
+                      highlightIndex={highlight?.tab === "research" ? highlight.index : null}
+                    />
+                  )}
+                  {activeTab === "pages" && (
+                    <PagesTab caseId={caseId} documents={documents} importantPages={caseData.important_pages} />
+                  )}
+                  {activeTab === "police" && <PoliceTab data={caseData} />}
+                  {activeTab === "courts" && (
+                    <CourtsTab
+                      data={caseData}
+                      highlightIndex={highlight?.tab === "courts" ? highlight.index : null}
+                    />
+                  )}
+                </>
               )}
             </div>
           </>
@@ -1400,7 +1525,7 @@ export default function CaseDetailPage() {
           <div className="relative w-full max-w-md rounded-2xl bg-white border border-sutra-line shadow-xl p-5 sm:p-6">
             <h2 id="analysis-choice-title" className="text-[17px] font-bold text-sutra-ink">Run case analysis</h2>
             <p className="text-[13px] text-sutra-ink-3 mt-1.5 mb-4">
-              Choose whether to process the complete case again or retry only documents that are still pending or failed.
+              Generates the case sections from the documents you've already analyzed. Documents with summaries are kept as-is — only pending or failed ones are re-analyzed.
             </p>
             <div className="space-y-2.5">
               <button
@@ -1408,8 +1533,8 @@ export default function CaseDetailPage() {
                 onClick={() => void runSelectedAnalysis("all")}
                 className="w-full text-left rounded-xl border border-sutra-line px-4 py-3 hover:border-navy/40 hover:bg-tint/40 transition-colors cursor-pointer"
               >
-                <span className="block text-[14px] font-semibold text-sutra-ink">Analyze all documents</span>
-                <span className="block text-[12px] text-sutra-ink-3 mt-0.5">Rebuild the complete case brief, parties, evidence, chronology, and legal sections.</span>
+                <span className="block text-[14px] font-semibold text-sutra-ink">Generate case sections</span>
+                <span className="block text-[12px] text-sutra-ink-3 mt-0.5">Build the brief, parties, evidence, chronology, and legal sections from analyzed documents.</span>
               </button>
               <button
                 type="button"
@@ -1481,6 +1606,52 @@ export default function CaseDetailPage() {
                 key={viewerUrl}
                 src={viewerUrl}
                 title={viewerDoc.original_filename}
+                className="w-full h-full border-0 bg-white"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Inline knowledge-base source viewer ═══ */}
+      {sourceViewer && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-[#F7F8FB]" role="dialog" aria-modal="true" aria-label={sourceViewer.title}>
+          {/* Viewer header */}
+          <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-sutra-line bg-white flex-none">
+            <span className="flex-none w-9 h-9 rounded-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 grid place-items-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="w-[18px] h-[18px]">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-[15px] font-bold text-sutra-ink truncate">{sourceViewer.title}</h4>
+              <p className="text-[12.5px] text-sutra-ink-3">Knowledge base source</p>
+            </div>
+            <button
+              onClick={closeSource}
+              className="flex-none w-9 h-9 rounded-lg border border-sutra-line bg-white text-sutra-ink-3 grid place-items-center hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors"
+              aria-label="Close source viewer"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-[18px] h-[18px]">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Viewer body */}
+          <div className="flex-1 min-h-0 relative bg-[#F7F8FB]">
+            {(sourceLoading || !sourceViewer.url) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sutra-ink-3">
+                <Spinner className="w-8 h-8 text-navy" />
+                <p className="text-[14px] font-semibold">Loading source…</p>
+              </div>
+            )}
+            {sourceViewer.url && (
+              <iframe
+                key={sourceViewer.url}
+                src={sourceViewer.url}
+                title={sourceViewer.title}
                 className="w-full h-full border-0 bg-white"
               />
             )}
@@ -1741,18 +1912,75 @@ function ChronologyTab({ data, highlightIndex }: { data: JudicialCaseDetail; hig
   );
 }
 
-function ResearchTab({ data, highlightIndex }: { data: JudicialCaseDetail; highlightIndex?: number | null }) {
+/**
+ * Clickable reference to a published knowledge-base source. Opens the exact
+ * page of the source PDF in the in-app viewer via `onOpen`. Reusable across
+ * cards (provisions today; police sections / court history later).
+ */
+function CorpusRefLink({
+  documentId,
+  page,
+  label,
+  onOpen,
+}: {
+  documentId: number;
+  page?: number | null;
+  label?: string;
+  onOpen: (documentId: number, page?: number | null) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(documentId, page ?? undefined)}
+      className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-navy hover:underline"
+    >
+      <span className="truncate max-w-[22rem]">{label ?? "View source"}</span>
+      {page ? <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-1 py-px flex-none">p. {page}</span> : null}
+      <span aria-hidden className="flex-none">↗</span>
+    </button>
+  );
+}
+
+function ResearchTab({ data, authoritySources, onOpenSource, highlightIndex }: { data: JudicialCaseDetail; authoritySources?: CorpusSearchHit[]; onOpenSource: (documentId: number, page?: number | null) => void; highlightIndex?: number | null }) {
   const provisions = (data.legal_provisions as any[]) || [];
   if (!provisions.length) {
     return <EmptyState title="No legal research yet" desc="Run Analysis to identify relevant acts, sections, and precedents." />;
   }
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
+      {authoritySources && authoritySources.length > 0 && (
+        <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5">
+          <h3 className="text-[12px] font-bold uppercase tracking-widest text-emerald-800">Knowledge base references</h3>
+          <p className="text-[12px] text-sutra-ink-3 mt-1">Authoritative sources retrieved from the published legal knowledge base.</p>
+          <div className="mt-2.5 space-y-2">
+            {authoritySources.map((source) => (
+              <div key={source.document_id} className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-white px-3 py-2.5">
+                {/* Whole card opens the source in-app at the retrieved page. */}
+                <button type="button" onClick={() => onOpenSource(source.document_id, source.page_start ?? undefined)} className="min-w-0 text-left group flex-1">
+                  <p className="text-[13px] font-semibold text-sutra-ink truncate group-hover:underline">{source.title}</p>
+                  <p className="text-[11.5px] text-sutra-ink-3">{source.citation}{source.year ? ` · ${source.year}` : ""}{source.page_start ? ` · p. ${source.page_start}` : ""}</p>
+                </button>
+                {source.source_url && <a href={source.source_url} target="_blank" rel="noreferrer" className="text-[12px] font-semibold text-navy hover:underline flex-none">Open source ↗</a>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       {provisions.map((p: any, i: number) => (
         <div key={i} data-item-idx={i} className={`py-3 border-b border-sutra-line-2 last:border-0 rounded-lg ${i === highlightIndex ? "flash-item" : ""}`}>
           <b className="text-[15px] text-navy">{p.act || p.title || ""}</b>
           {p.section && <span className="text-[14px] text-sutra-ink-2 ml-2">§ {p.section}</span>}
           {p.description && <p className="text-[14px] text-sutra-ink-2 mt-1">{p.description}</p>}
+          {p.source?.document_id && (
+            <div className="mt-1.5">
+              <CorpusRefLink
+                documentId={p.source.document_id}
+                page={p.source.page}
+                label={p.source.citation || p.source.title || "View source"}
+                onOpen={onOpenSource}
+              />
+            </div>
+          )}
         </div>
       ))}
     </div>

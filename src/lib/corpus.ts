@@ -315,6 +315,19 @@ export interface CorpusSearchHit {
   outcome: string | null;
   pdf_url: string | null;
   source_url: string | null;
+  /** 1-based page in the source PDF, or null when the chunk was not attributed. */
+  page_start: number | null;
+  page_end: number | null;
+}
+
+/** Minimal published-document source for the in-app reference viewer. */
+export interface PublishedSource {
+  id: number;
+  title: string;
+  citation: string;
+  source_url: string | null;
+  /** Presigned PDF URL, or null if the document has no stored PDF. */
+  pdf_url: string | null;
 }
 
 /** One cell of the coverage grid: how many published judgments we hold. */
@@ -664,6 +677,17 @@ export const corpusService = {
     return request<{ success: boolean; data: CorpusDocument }>(`/api/v1/corpus/documents/${id}`).then(
       (r) => r.data
     );
+  },
+
+  /**
+   * Published-only source for the page-accurate reference viewer. Unlike
+   * getDocument (uploaders-only, full record), any authenticated role can call
+   * this; it 404s for anything not published. `pdf_url` is presigned.
+   */
+  getPublishedSource(id: number): Promise<PublishedSource> {
+    return request<{ success: boolean; data: PublishedSource }>(
+      `/api/v1/corpus/documents/${id}/source`
+    ).then((r) => r.data);
   },
 
   getChunks(

@@ -136,6 +136,11 @@ export default function TopBar() {
               Admin
             </Link>
           )}
+          {user?.role === "owner" && (
+            <Link href="/knowledge-base" className="hidden sm:inline-block text-sm font-semibold text-sutra-ink-2 hover:text-navy px-3 py-2 rounded-lg transition-colors">
+              Knowledge Base
+            </Link>
+          )}
           {isCorpus && (
             <Link href="/curation" className="hidden sm:inline-block text-sm font-semibold text-sutra-ink-2 hover:text-navy px-3 py-2 rounded-lg transition-colors">
               Corpus

@@ -13,6 +13,7 @@ import {
   BarChart3,
   History,
   Settings,
+  BookOpen,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -23,10 +24,11 @@ import { useAuth } from "@/lib/auth-context";
 import Logo from "@/components/Logo";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
 
-export const ADMIN_NAV: Array<{ href: string; label: string; icon: LucideIcon }> = [
+export const ADMIN_NAV: Array<{ href: string; label: string; icon: LucideIcon; ownerOnly?: boolean }> = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/cases", label: "Cases", icon: Gavel },
+  { href: "/knowledge-base", label: "Knowledge Base", icon: BookOpen, ownerOnly: true },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
   { href: "/admin/packages", label: "Packages", icon: Package },
   { href: "/admin/support", label: "Help Desk", icon: LifeBuoy },
@@ -71,7 +73,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       {/* Nav */}
       <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
         <ul className="space-y-1">
-          {ADMIN_NAV.map((item) => {
+          {ADMIN_NAV.filter((item) => !item.ownerOnly || user?.role === "owner").map((item) => {
             const active = isActive(item.href);
             return (
               <li key={item.href}>
