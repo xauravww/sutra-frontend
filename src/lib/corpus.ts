@@ -499,6 +499,27 @@ export const CASE_TYPE_OPTIONS = [
 ];
 
 export const corpusService = {
+  /** Search published judgments for related reference cases. */
+  search(input: {
+    query: string;
+    limit?: number;
+    offset?: number;
+    rerank?: boolean;
+  }): Promise<{ hits: CorpusSearchHit[]; total: number }> {
+    const qs = new URLSearchParams({ query: input.query });
+    if (input.limit !== undefined) qs.set("limit", String(input.limit));
+    if (input.offset !== undefined) qs.set("offset", String(input.offset));
+    if (input.rerank !== undefined) qs.set("rerank", String(input.rerank));
+    return request<{
+      success: boolean;
+      hits: CorpusSearchHit[];
+      total: number;
+    }>(`/api/v1/corpus/search?${qs.toString()}`).then((body) => ({
+      hits: body.hits,
+      total: body.total,
+    }));
+  },
+
   /**
    * Grounded research answer or draft.
    *

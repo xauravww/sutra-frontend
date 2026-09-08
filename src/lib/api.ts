@@ -419,6 +419,7 @@ export interface JudicialCase {
   status: string;
   pdf_filename?: string;
   page_count?: number;
+  documents_analyzed?: boolean;
   created_at: string;
   updated_at: string;
 }

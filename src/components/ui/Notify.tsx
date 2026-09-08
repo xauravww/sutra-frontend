@@ -127,13 +127,13 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
             <div className="flex justify-end gap-2.5 mt-6">
               <button
                 onClick={() => closeConfirm(false)}
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold text-sutra-ink border border-sutra-line hover:bg-tint transition-colors"
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold text-sutra-ink border border-sutra-line hover:bg-tint transition-colors cursor-pointer"
               >
                 {confirmState.cancelLabel || "Cancel"}
               </button>
               <button
                 onClick={() => closeConfirm(true)}
-                className={`px-4 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors ${
+                className={`px-4 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors cursor-pointer ${
                   confirmState.tone === "danger"
                     ? "bg-red-600 hover:bg-red-700"
                     : "bg-navy hover:opacity-90"

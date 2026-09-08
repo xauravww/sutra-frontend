@@ -460,7 +460,7 @@ export default function MediationDirectoryPage() {
         {!showNew && <>
         {/* Controls */}
         <div className="flex flex-col gap-2 mb-6">
-          <label className="w-full flex items-center gap-2 sm:gap-3 bg-white border border-sutra-line rounded-xl px-3 sm:px-4 min-h-[48px] sm:min-h-[56px] transition-all focus-within:border-focus focus-within:shadow-[0_0_0_3px_rgba(58,124,192,.15)]">
+          <label className="w-full flex items-center gap-2 sm:gap-3 bg-white border border-sutra-line rounded-xl px-3 sm:px-4 min-h-[48px] sm:min-h-[56px]">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="w-5 h-5 sm:w-[22px] sm:h-[22px] text-sutra-ink-3 flex-none">
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.5-3.5" />
@@ -470,7 +470,7 @@ export default function MediationDirectoryPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search sessions..."
-              className="border-0 bg-transparent outline-none w-full font-[inherit] text-[15px] sm:text-[17px] text-sutra-ink placeholder:text-sutra-ink-3"
+              className="border-0 bg-transparent outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 w-full font-[inherit] text-[15px] sm:text-[17px] text-sutra-ink placeholder:text-sutra-ink-3"
             />
           </label>
           <p className="text-left text-[12px] sm:text-[13px] text-sutra-ink-3">

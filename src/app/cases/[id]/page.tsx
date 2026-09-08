@@ -6,10 +6,39 @@ import Link from "next/link";
 import TopBar from "@/components/TopBar";
 import { Spinner } from "@/components/ui/Button";
 import { judicialCases, type JudicialCaseDetail, type JudicialDocument, type JudicialCaseCard } from "@/lib/api";
+import { corpusService, type CorpusSearchHit } from "@/lib/corpus";
 import { useNotify } from "@/components/ui/Notify";
 import Markdown from "react-markdown";
 
 type Tab = "overview" | "parties" | "witnesses" | "evidence" | "chronology" | "research" | "pages" | "police" | "courts";
+type DocumentAnalysisState = "pending" | "analyzing" | "complete" | "failed";
+
+const SAMPLE_CASES = [
+  {
+    id: 1,
+    title: "Case 1: Cheating & Forgery",
+    summary: "State of Maharashtra vs. Rajesh Kumar — IPC 420, 467, 468, 471 r/w 120B",
+    files: [
+      "/sample-documents/Judge_Case1_FIR_FirstInformationReport.pdf",
+      "/sample-documents/Judge_Case1_ChargeSheet_FinalReport.pdf",
+      "/sample-documents/Judge_Case1_WitnessStatements.pdf",
+      "/sample-documents/Judge_Case1_Evidence_Exhibits.pdf",
+      "/sample-documents/Judge_Case1_BailOrder.pdf",
+    ],
+  },
+  {
+    id: 2,
+    title: "Case 2: Bank Fraud (CBI)",
+    summary: "State (CBI) vs. Suresh Yadav & Ors. — IPC 408, 409, 420, 471 r/w 120B",
+    files: [
+      "/sample-documents/Judge_Case2_FIR_FirstInformationReport.pdf",
+      "/sample-documents/Judge_Case2_ChargeSheet_FinalReport.pdf",
+      "/sample-documents/Judge_Case2_WitnessStatements.pdf",
+      "/sample-documents/Judge_Case2_Evidence_Exhibits.pdf",
+      "/sample-documents/Judge_Case2_FramingOfCharges_Order.pdf",
+    ],
+  },
+] as const;
 
 /* Quick access cards — one per tab, mirroring the workspace's analysis strip
    so a judge can reach any section of the case in one tap. */
@@ -221,6 +250,15 @@ export default function CaseDetailPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [quickOpen, setQuickOpen] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [showSampleData, setShowSampleData] = useState(false);
+  const [documentsOpen, setDocumentsOpen] = useState(true);
+  const [expandedSampleCase, setExpandedSampleCase] = useState<number | null>(null);
+  const [selectedSampleCase, setSelectedSampleCase] = useState<number | null>(null);
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const [documentAnalysis, setDocumentAnalysis] = useState<Record<string, DocumentAnalysisState>>({});
+  const [analysisChoiceOpen, setAnalysisChoiceOpen] = useState(false);
+  const [relatedCorpusCases, setRelatedCorpusCases] = useState<CorpusSearchHit[]>([]);
+  const [relatedCorpusLoading, setRelatedCorpusLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -264,6 +302,14 @@ export default function CaseDetailPage() {
     try {
       const res = await judicialCases.get(caseId);
       setCaseData(res.data);
+      if (res.data.status === "processing" && res.data.documents?.length) {
+        setDocumentAnalysis((current) => {
+          if (Object.keys(current).length > 0) return current;
+          return Object.fromEntries(
+            (res.data.documents ?? []).map((doc, index) => [doc.id, index === 0 ? "analyzing" : "pending"])
+          );
+        });
+      }
     } catch {
       setCaseData(null);
     } finally {
@@ -283,6 +329,23 @@ export default function CaseDetailPage() {
       try {
         const res = await judicialCases.get(caseId);
         setCaseData(res.data);
+        if (res.data.documents?.length) {
+          setDocumentAnalysis((current) => {
+            if (res.data.status === "structured" || res.data.status === "failed") {
+              return Object.fromEntries((res.data.documents ?? []).map((doc) => [
+                doc.id,
+                current[doc.id] === "complete" || (doc.page_summaries?.length ?? 0) > 0
+                  ? "complete"
+                  : res.data.status === "structured" ? "complete" : "failed",
+              ]));
+            }
+            if (Object.keys(current).length > 0) return current;
+            return Object.fromEntries((res.data.documents ?? []).map((doc, index) => [
+              doc.id,
+              index === 0 ? "analyzing" : "pending",
+            ]));
+          });
+        }
         if (res.data.status === "structured" || res.data.status === "failed") {
           if (pollRef.current) {
             clearInterval(pollRef.current);
@@ -323,6 +386,38 @@ export default function CaseDetailPage() {
   useEffect(() => {
     if (caseId) judicialCases.listCards(caseId).then(r => setCards(r.data)).catch(() => {});
   }, [caseId]);
+
+  useEffect(() => {
+    const query = caseData
+      ? [caseData.title, caseData.case_number].filter(Boolean).join(" ").trim()
+      : "";
+    if (query.length < 2) {
+      setRelatedCorpusCases([]);
+      setRelatedCorpusLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setRelatedCorpusLoading(true);
+    void corpusService.search({ query: query.slice(0, 500), limit: 8, rerank: true })
+      .then(({ hits }) => {
+        if (cancelled) return;
+        const unique = hits.filter((hit, index, all) =>
+          all.findIndex((candidate) => candidate.document_id === hit.document_id) === index
+        );
+        setRelatedCorpusCases(unique.slice(0, 3));
+      })
+      .catch(() => {
+        if (!cancelled) setRelatedCorpusCases([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRelatedCorpusLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [caseData?.title, caseData?.case_number]);
 
   const sendChatQuery = async (q: string) => {
     const query = q.trim();
@@ -388,12 +483,37 @@ export default function CaseDetailPage() {
       );
       // Server auto-starts extraction; reflect that and poll for the result.
       setCaseData({ ...res.data, status: "processing" });
+      setDocumentAnalysis(Object.fromEntries(
+        (res.data.documents ?? []).map((doc, index) => [doc.id, index === 0 ? "analyzing" : "pending"])
+      ));
       toast(`${files.length} document(s) uploaded. Analysis started.`, "success");
       startPolling();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Upload failed", "error");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const selectSampleCase = async (sample: (typeof SAMPLE_CASES)[number]) => {
+    if (sampleLoading || uploading) return;
+    setSelectedSampleCase(sample.id);
+    setSampleLoading(true);
+    try {
+      const files = await Promise.all(
+        sample.files.map(async (path) => {
+          const response = await fetch(path);
+          if (!response.ok) throw new Error(`Could not load ${path.split("/").pop()}`);
+          const blob = await response.blob();
+          return new File([blob], path.split("/").pop() || "sample-case.pdf", { type: "application/pdf" });
+        })
+      );
+      await handleFiles(files);
+    } catch (err) {
+      setSelectedSampleCase(null);
+      toast(err instanceof Error ? err.message : "Could not load sample case", "error");
+    } finally {
+      setSampleLoading(false);
     }
   };
 
@@ -432,6 +552,27 @@ export default function CaseDetailPage() {
       toast(err instanceof Error ? err.message : "Failed to delete document", "error");
     } finally {
       setDeletingDocId(null);
+    }
+  };
+
+  const analyzeDocument = async (doc: JudicialDocument) => {
+    if (documentAnalysis[doc.id] === "analyzing") return;
+    setDocumentAnalysis((current) => ({ ...current, [doc.id]: "analyzing" }));
+    try {
+      const res = await judicialCases.summarizeAllPages(caseId, doc.id);
+      setCaseData((current) => current
+        ? {
+            ...current,
+            documents: (current.documents ?? []).map((item) =>
+              item.id === doc.id ? { ...item, page_summaries: res.data } : item
+            ),
+          }
+        : current);
+      setDocumentAnalysis((current) => ({ ...current, [doc.id]: "complete" }));
+      toast(`${doc.original_filename} analyzed successfully.`, "success");
+    } catch (err) {
+      setDocumentAnalysis((current) => ({ ...current, [doc.id]: "failed" }));
+      toast(err instanceof Error ? err.message : "Document analysis failed", "error");
     }
   };
 
@@ -586,6 +727,8 @@ export default function CaseDetailPage() {
   const hasDocs = documents.length > 0;
   const isProcessing = caseData.status === "processing" || analyzing;
   const isStructured = caseData.status === "structured";
+  const allDocumentsAnalyzed = hasDocs && documents.every((doc) => (doc.page_summaries?.length ?? 0) > 0);
+
   const listLength = (v: unknown) => (Array.isArray(v) ? v.length : 0);
   const counts: Record<Tab, number> = {
     overview: 0,
@@ -597,6 +740,33 @@ export default function CaseDetailPage() {
     pages: documents.reduce((n, d) => n + (d.page_count || 0), 0),
     police: caseData.police_station ? 1 : 0,
     courts: listLength(caseData.court_history),
+  };
+  const getDocumentAnalysisState = (doc: JudicialDocument): DocumentAnalysisState =>
+    documentAnalysis[doc.id]
+      ?? (isProcessing
+        ? "analyzing"
+        : isStructured || (doc.page_summaries?.length ?? 0) > 0
+        ? "complete"
+        : caseData.status === "failed"
+        ? "failed"
+        : "pending");
+  const retryableDocuments = documents.filter((doc) => {
+    const state = getDocumentAnalysisState(doc);
+    return state === "failed" || state === "pending";
+  });
+  const runSelectedAnalysis = async (scope: "all" | "failed") => {
+    setAnalysisChoiceOpen(false);
+    if (scope === "all") {
+      setDocumentAnalysis(Object.fromEntries(documents.map((doc) => [doc.id, "pending" as DocumentAnalysisState])));
+      for (const doc of documents) await analyzeDocument(doc);
+      await doAnalyze();
+      return;
+    }
+    if (retryableDocuments.length === 0) {
+      toast("There are no failed or pending documents to retry.", "info");
+      return;
+    }
+    for (const doc of retryableDocuments) await analyzeDocument(doc);
   };
 
   return (
@@ -676,10 +846,20 @@ export default function CaseDetailPage() {
 
         {/* Documents manager */}
         <div className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-5 mb-4 sm:mb-5">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <h3 className="text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">
-              Documents{hasDocs ? ` (${documents.length})` : ""}
-            </h3>
+          <div className={`flex items-center justify-between gap-3 ${documentsOpen ? "mb-3" : "mb-0"}`}>
+            <button
+              type="button"
+              onClick={() => setDocumentsOpen((open) => !open)}
+              aria-expanded={documentsOpen}
+              className="inline-flex items-center gap-2 text-left bg-transparent border-0 cursor-pointer group"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 text-sutra-ink-3 transition-transform ${documentsOpen ? "rotate-90" : ""}`} aria-hidden="true">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+              <span className="text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3 group-hover:text-navy">
+                Documents{hasDocs ? ` (${documents.length})` : ""}
+              </span>
+            </button>
             {hasDocs && (
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -691,6 +871,79 @@ export default function CaseDetailPage() {
               </button>
             )}
           </div>
+
+          {documentsOpen && <>
+          {!hasDocs && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => setShowSampleData((open) => !open)}
+                aria-expanded={showSampleData}
+                className="inline-flex items-center gap-1.5 text-[13px] sm:text-[14px] font-semibold text-navy hover:underline cursor-pointer"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className={`w-4 h-4 transition-transform ${showSampleData ? "rotate-90" : ""}`}>
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+                Confused? Need some sample data? Click here
+              </button>
+
+              {showSampleData && (
+                <div className="mt-3 space-y-2" aria-label="Sample court cases">
+                  {sampleLoading && <p className="text-[12px] text-sutra-ink-3">Loading sample documents…</p>}
+                  {!sampleLoading && selectedSampleCase && <p className="text-[12px] text-green-700">Sample documents are uploading and analysis will start automatically.</p>}
+                  {SAMPLE_CASES.map((sample) => (
+                    <div
+                      key={sample.id}
+                      role="radio"
+                      aria-checked={selectedSampleCase === sample.id}
+                      tabIndex={0}
+                      onClick={() => { void selectSampleCase(sample); }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          void selectSampleCase(sample);
+                        }
+                      }}
+                      className={`rounded-xl border bg-[#FAFBFD] overflow-hidden cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy/30 ${selectedSampleCase === sample.id ? "border-navy/50 bg-tint/30" : "border-sutra-line hover:border-navy/30"}`}
+                    >
+                      <div className="flex items-center gap-2 px-3.5 py-3">
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); setExpandedSampleCase(expandedSampleCase === sample.id ? null : sample.id); }}
+                          aria-label={`${expandedSampleCase === sample.id ? "Hide" : "Show"} details for ${sample.title}`}
+                          className="w-7 h-7 rounded-md border border-sutra-line-2 bg-white text-sutra-ink-3 grid place-items-center hover:text-navy hover:border-navy/40 transition-colors cursor-pointer flex-none"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" className="w-4 h-4"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+                        </button>
+                        <span className="min-w-0 flex-1 text-[13px] sm:text-[14px] font-semibold text-sutra-ink truncate">{sample.title}</span>
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); void selectSampleCase(sample); }}
+                          aria-label={`Use ${sample.title}`}
+                          title={`Use ${sample.title}`}
+                          disabled={sampleLoading || uploading}
+                          className="w-7 h-7 rounded-full border-2 border-navy text-navy grid place-items-center hover:bg-navy hover:text-white transition-colors cursor-pointer flex-none disabled:opacity-50 disabled:cursor-default"
+                        >
+                          {selectedSampleCase === sample.id && <span className="w-2 h-2 rounded-full bg-current" />}
+                        </button>
+                      </div>
+                      {expandedSampleCase === sample.id && (
+                        <div className="border-t border-sutra-line-2 px-3.5 py-3 text-[12px] text-sutra-ink-3">
+                          <p>{sample.summary}</p>
+                          <p className="mt-1">{sample.files.length} court documents will be uploaded.</p>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {sample.files.map((path) => (
+                              <a key={path} href={path} download className="text-navy font-semibold hover:underline cursor-pointer">Download {path.split("/").pop()}</a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Drop zone */}
           <div
@@ -754,7 +1007,42 @@ export default function CaseDetailPage() {
                       {d.page_count ? ` · ${d.page_count}p` : ""}
                       {d.document_type && d.document_type !== "OTHER" ? ` · ${d.document_type}` : ""}
                     </p>
+                    <span className={`inline-flex items-center gap-1 mt-1 text-[11px] font-semibold ${
+                      getDocumentAnalysisState(d) === "complete"
+                        ? "text-green-700"
+                        : getDocumentAnalysisState(d) === "analyzing"
+                        ? "text-blue-700"
+                        : getDocumentAnalysisState(d) === "failed"
+                        ? "text-red-700"
+                        : "text-sutra-ink-3"
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        getDocumentAnalysisState(d) === "complete"
+                          ? "bg-green-500"
+                          : getDocumentAnalysisState(d) === "analyzing"
+                          ? "bg-blue-500 animate-pulse"
+                          : getDocumentAnalysisState(d) === "failed"
+                          ? "bg-red-500"
+                          : "bg-sutra-ink-3"
+                      }`} />
+                      {getDocumentAnalysisState(d) === "complete"
+                        ? "Analyzed"
+                        : getDocumentAnalysisState(d) === "analyzing"
+                        ? "Analyzing…"
+                        : getDocumentAnalysisState(d) === "failed"
+                        ? "Analysis failed"
+                        : "Pending analysis"}
+                    </span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => analyzeDocument(d)}
+                    disabled={getDocumentAnalysisState(d) === "analyzing" || isProcessing}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-navy hover:underline bg-transparent border-0 cursor-pointer flex-none disabled:opacity-50 disabled:cursor-default"
+                  >
+                    {getDocumentAnalysisState(d) === "analyzing" ? <Spinner className="w-3.5 h-3.5" /> : null}
+                    {getDocumentAnalysisState(d) === "complete" ? "Re-analyze" : "Analyze"}
+                  </button>
                   <button
                     onClick={() => openViewer(d)}
                     className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-navy hover:underline flex-none bg-transparent border-0 cursor-pointer"
@@ -784,6 +1072,7 @@ export default function CaseDetailPage() {
               ))}
             </ul>
           )}
+          </>}
         </div>
 
         {/* Analysis bar */}
@@ -792,10 +1081,12 @@ export default function CaseDetailPage() {
             <div className="flex items-center gap-2.5 min-w-0">
               <span
                 className={`w-2.5 h-2.5 rounded-full flex-none ${
-                  isProcessing
+                    isProcessing
                     ? "bg-blue-500 animate-pulse"
                     : isStructured
                     ? "bg-green-dot"
+                    : allDocumentsAnalyzed && caseData.status === "failed"
+                    ? "bg-amber-dot"
                     : caseData.status === "failed"
                     ? "bg-red-500"
                     : "bg-amber-dot"
@@ -807,22 +1098,26 @@ export default function CaseDetailPage() {
                     ? "Analyzing case…"
                     : isStructured
                     ? "Analysis ready"
+                    : allDocumentsAnalyzed && caseData.status === "failed"
+                    ? "Document analysis complete"
                     : caseData.status === "failed"
                     ? "Analysis failed"
                     : "Not analyzed yet"}
                 </p>
                 <p className="text-[12px] text-sutra-ink-3">
                   {isProcessing
-                    ? "Extracting parties, evidence, chronology & law"
+                    ? "You can leave this page — we’ll notify you when the analysis is ready."
                     : isStructured
                     ? "Sections below are populated from your documents"
+                    : allDocumentsAnalyzed && caseData.status === "failed"
+                    ? "All documents are analyzed. Run case analysis to populate the case sections."
                     : "Run analysis to populate the case sections"}
                 </p>
               </div>
             </div>
             <span className="flex-1" />
             <button
-              onClick={doAnalyze}
+              onClick={() => setAnalysisChoiceOpen(true)}
               disabled={isProcessing}
               className="inline-flex items-center gap-2 bg-navy text-white rounded-xl text-[14px] font-semibold px-4 py-2.5 min-h-[44px] transition-colors hover:bg-navy-dark disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -834,9 +1129,69 @@ export default function CaseDetailPage() {
                   <path d="M21 3v6h-6" />
                 </svg>
               )}
-              {isProcessing ? "Analyzing…" : isStructured ? "Regenerate" : "Run Analysis"}
+              {isProcessing ? "Analyzing…" : isStructured ? "Regenerate" : "Run Case Analysis"}
             </button>
           </div>
+        )}
+
+        {hasDocs && (
+          <section className="bg-white border border-sutra-line rounded-2xl px-4 sm:px-5 py-4 mb-5 sm:mb-6" aria-labelledby="related-corpus-heading">
+            <div className="flex items-start gap-3 mb-3">
+              <span className="w-9 h-9 rounded-[10px] bg-emerald-50 text-emerald-700 grid place-items-center flex-none" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+                </svg>
+              </span>
+              <div className="min-w-0">
+                <h2 id="related-corpus-heading" className="text-[15px] font-bold text-sutra-ink">Related corpus cases</h2>
+                <p className="text-[12.5px] text-sutra-ink-3 mt-0.5">Published judgments ingested and reviewed by the researcher or curator pipeline.</p>
+              </div>
+            </div>
+
+            {relatedCorpusLoading ? (
+              <div className="space-y-2" aria-label="Finding related corpus cases">
+                {[1, 2].map((item) => <div key={item} className="h-[62px] rounded-xl bg-slate-50 border border-sutra-line animate-pulse" />)}
+              </div>
+            ) : (
+              relatedCorpusCases.length > 0 ? (
+                <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3">
+                  {relatedCorpusCases.map((reference) => {
+                  const source = reference.pdf_url || reference.source_url;
+                  return (
+                    <article key={reference.document_id} className="rounded-xl border border-sutra-line-2 bg-slate-50/70 p-3.5 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-[13.5px] font-semibold text-sutra-ink leading-snug line-clamp-2">{reference.title || "Untitled judgment"}</h3>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 flex-none">Corpus</span>
+                      </div>
+                      <p className="text-[11.5px] text-sutra-ink-3 mt-2 line-clamp-1">
+                        {[reference.citation, reference.court, reference.year].filter(Boolean).join(" · ") || "Published reference judgment"}
+                      </p>
+                      {source ? (
+                        <a
+                          href={source}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => void corpusService.recordSourceClick({ query: caseData.title, document_id: reference.document_id, result_count: relatedCorpusCases.length })}
+                          className="inline-flex items-center gap-1 mt-2.5 text-[12px] font-semibold text-navy hover:underline cursor-pointer"
+                        >
+                          Open source
+                          <span aria-hidden="true">↗</span>
+                        </a>
+                      ) : (
+                        <span className="inline-flex mt-2.5 text-[12px] text-sutra-ink-3">Corpus reference</span>
+                      )}
+                    </article>
+                  );
+                  })}
+                </div>
+              ) : (
+                <p className="rounded-xl border border-dashed border-sutra-line-2 bg-slate-50/70 px-3.5 py-3 text-[13px] text-sutra-ink-3">
+                  No matching published corpus cases were found for this case yet.
+                </p>
+              )
+            )}
+          </section>
         )}
 
         {/* Quick access + tabs */}
@@ -988,7 +1343,7 @@ export default function CaseDetailPage() {
               ref={tabPanelRef}
               className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 min-h-[240px] sm:min-h-[300px] [overflow-wrap:anywhere]"
             >
-              {activeTab === "overview" && <OverviewTab data={caseData} />}
+              {activeTab === "overview" && <OverviewTab data={caseData} onGenerate={() => void doAnalyze()} />}
               {activeTab === "parties" && (
                 <PartiesTab
                   data={caseData}
@@ -1033,6 +1388,53 @@ export default function CaseDetailPage() {
           </>
         )}
       </main>
+
+      {analysisChoiceOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="analysis-choice-title">
+          <button
+            type="button"
+            aria-label="Close analysis options"
+            onClick={() => setAnalysisChoiceOpen(false)}
+            className="absolute inset-0 bg-black/40 cursor-default"
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white border border-sutra-line shadow-xl p-5 sm:p-6">
+            <h2 id="analysis-choice-title" className="text-[17px] font-bold text-sutra-ink">Run case analysis</h2>
+            <p className="text-[13px] text-sutra-ink-3 mt-1.5 mb-4">
+              Choose whether to process the complete case again or retry only documents that are still pending or failed.
+            </p>
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => void runSelectedAnalysis("all")}
+                className="w-full text-left rounded-xl border border-sutra-line px-4 py-3 hover:border-navy/40 hover:bg-tint/40 transition-colors cursor-pointer"
+              >
+                <span className="block text-[14px] font-semibold text-sutra-ink">Analyze all documents</span>
+                <span className="block text-[12px] text-sutra-ink-3 mt-0.5">Rebuild the complete case brief, parties, evidence, chronology, and legal sections.</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void runSelectedAnalysis("failed")}
+                disabled={retryableDocuments.length === 0}
+                className="w-full text-left rounded-xl border border-sutra-line px-4 py-3 hover:border-navy/40 hover:bg-tint/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+              >
+                <span className="block text-[14px] font-semibold text-sutra-ink">Analyze failed documents only</span>
+                <span className="block text-[12px] text-sutra-ink-3 mt-0.5">
+                  {retryableDocuments.length > 0
+                    ? `Retry ${retryableDocuments.length} pending or failed document${retryableDocuments.length === 1 ? "" : "s"}.`
+                    : "There are no pending or failed documents."}
+                </span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAnalysisChoiceOpen(false)}
+              className="w-full mt-4 rounded-xl border border-sutra-line px-4 py-2.5 text-[14px] font-semibold text-sutra-ink-2 hover:bg-tint transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ═══ Inline document viewer ═══ */}
       {viewerDoc && (
@@ -1156,7 +1558,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function EmptyState({ title, desc }: { title: string; desc: string }) {
+function EmptyState({ title, desc, onAction, actionLabel = "Generate" }: { title: string; desc: string; onAction?: () => void; actionLabel?: string }) {
   return (
     <div className="text-center py-12">
       <div className="w-14 h-14 rounded-2xl bg-tint text-navy grid place-items-center mx-auto mb-4 border border-tint-2">
@@ -1166,17 +1568,33 @@ function EmptyState({ title, desc }: { title: string; desc: string }) {
       </div>
       <p className="text-[17px] font-semibold text-sutra-ink mb-1">{title}</p>
       <p className="text-[15px] text-sutra-ink-3">{desc}</p>
+      {onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+          aria-label={actionLabel}
+          title={actionLabel}
+          className="mt-5 w-10 h-10 rounded-xl border border-sutra-line bg-white text-navy grid place-items-center mx-auto hover:border-navy hover:bg-tint transition-colors cursor-pointer"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+            <path d="M21 3v6h-6" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
 
-function OverviewTab({ data }: { data: JudicialCaseDetail }) {
+function OverviewTab({ data, onGenerate }: { data: JudicialCaseDetail; onGenerate?: () => void }) {
   const brief = data.case_brief as any;
   if (!brief) {
     return (
       <EmptyState
         title="No case brief yet"
         desc="Run Analysis to generate a case brief from your documents."
+        onAction={onGenerate}
+        actionLabel="Generate case brief"
       />
     );
   }
