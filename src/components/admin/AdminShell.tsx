@@ -14,6 +14,7 @@ import {
   History,
   Settings,
   BookOpen,
+  Coins,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -33,6 +34,7 @@ export const ADMIN_NAV: Array<{ href: string; label: string; icon: LucideIcon; o
   { href: "/admin/packages", label: "Packages", icon: Package },
   { href: "/admin/support", label: "Help Desk", icon: LifeBuoy },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+  { href: "/admin/usage", label: "AI Usage", icon: Coins, ownerOnly: true },
   { href: "/admin/activity-logs", label: "Activity Logs", icon: History },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];

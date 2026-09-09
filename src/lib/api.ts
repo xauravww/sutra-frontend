@@ -1225,6 +1225,115 @@ export const admin = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  AI usage & cost budgets (admin/owner panel)                        */
+/* ------------------------------------------------------------------ */
+
+export interface AiUsageTotals {
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+}
+
+export interface AiUsageSeriesPoint extends AiUsageTotals {
+  /** ISO timestamp of the truncated bucket start. */
+  bucket: string;
+}
+
+export interface AiFeatureUsageRow extends AiUsageTotals {
+  feature: string;
+}
+
+export interface AiBudgetInfo {
+  /** $/month ceiling — null means unlimited. */
+  limit_usd: number | null;
+  source: "owner" | "plan" | "default" | "none";
+  /** Explicit per-user override row value (null when none). */
+  override_monthly_limit_usd: number | null;
+}
+
+export interface AiUserUsageRow extends AiUsageTotals {
+  user_id: number;
+  name: string;
+  email: string;
+  role: string;
+  budget: AiBudgetInfo;
+}
+
+export interface AiResourceUsageRow extends AiUsageTotals {
+  resource_type: string;
+  resource_id: number;
+}
+
+export interface AiUsageSummary {
+  range: string;
+  window_start: string;
+  totals: AiUsageTotals;
+  series: AiUsageSeriesPoint[];
+  features: AiFeatureUsageRow[];
+  default_budget_usd: number | null;
+  budget: AiBudgetInfo & { used_usd: number };
+}
+
+export type AiUsageRange = "day" | "week" | "month" | "year" | "all";
+
+/** Per-model USD per 1M tokens. Object form splits input/output legs. */
+export type AiModelPrice =
+  | number
+  | { input: number; output: number };
+
+export interface AiUsageConfig {
+  default_budget_usd: number | null;
+  /** Model → price per 1M tokens (legacy plain number = both legs). */
+  model_prices: Record<string, AiModelPrice> | null;
+}
+
+export const aiUsage = {
+  summary: (range: AiUsageRange = "month", userId?: number) => {
+    const qs = new URLSearchParams({ range });
+    if (userId !== undefined) qs.set("user_id", String(userId));
+    return request<{ success: boolean; data: AiUsageSummary }>(
+      `/api/v1/admin/ai-usage/summary?${qs.toString()}`
+    );
+  },
+
+  users: (range: AiUsageRange = "month") =>
+    request<{ success: boolean; data: AiUserUsageRow[] }>(
+      `/api/v1/admin/ai-usage/users?range=${range}`
+    ),
+
+  resources: (range: AiUsageRange = "month", type?: string) => {
+    const qs = new URLSearchParams({ range });
+    if (type) qs.set("type", type);
+    return request<{ success: boolean; data: AiResourceUsageRow[] }>(
+      `/api/v1/admin/ai-usage/resources?${qs.toString()}`
+    );
+  },
+
+  config: () =>
+    request<{ success: boolean; data: AiUsageConfig }>("/api/v1/admin/ai-usage/config"),
+
+  updateConfig: (data: { default_budget_usd?: number; model_prices?: Record<string, AiModelPrice> }) =>
+    request<{ success: boolean; data: { updated: string[] } }>("/api/v1/admin/ai-usage/config", {
+      method: "PUT",
+      json: data,
+    }),
+
+  setBudget: (userId: number, monthlyLimitUsd: number) =>
+    request<{ success: boolean; data: AiBudgetInfo & { default_budget_usd: number | null } }>(
+      `/api/v1/admin/ai-usage/users/${userId}/budget`,
+      { method: "PUT", json: { monthly_limit_usd: monthlyLimitUsd } }
+    ),
+
+  deleteBudget: (userId: number) =>
+    request<{ success: boolean; data: AiBudgetInfo & { default_budget_usd: number | null } }>(
+      `/api/v1/admin/ai-usage/users/${userId}/budget`,
+      { method: "DELETE" }
+    ),
+};
+
+/* ------------------------------------------------------------------ */
 /*  System settings (admin)                                            */
 /* ------------------------------------------------------------------ */
 
