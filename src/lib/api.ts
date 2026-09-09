@@ -1347,3 +1347,81 @@ export const systemSettings = {
       json: { settings },
     }),
 };
+
+/* ------------------------------------------------------------------ */
+/*  Rate-limit policies (owner)                                        */
+/* ------------------------------------------------------------------ */
+
+export type RateLimitKind = "global" | "group" | "specific";
+
+export interface RateLimitPolicyUsage {
+  hits: number;
+  blocked: number;
+  resetInSeconds: number | null;
+}
+
+export interface RateLimitPolicyInfo {
+  code: string;
+  kind: RateLimitKind;
+  method: string | null;
+  path: string | null;
+  label: string;
+  limit: number;
+  window_minutes: number;
+  enabled: boolean;
+  description: string | null;
+  usage: RateLimitPolicyUsage;
+}
+
+export interface RateLimitPolicyClient {
+  identifier: string;
+  kind: "user" | "ip";
+  hits: number;
+  resetInSeconds: number | null;
+}
+
+export interface RateLimitUserRow {
+  code: string;
+  label: string;
+  hits: number;
+  limit: number;
+  window_minutes: number;
+  resetInSeconds: number | null;
+}
+
+export const rateLimits = {
+  overview: () =>
+    request<{ success: boolean; data: { generatedAt: string; policies: RateLimitPolicyInfo[] } }>(
+      "/api/v1/admin/rate-limits/overview"
+    ),
+
+  policyClients: (code: string) =>
+    request<{ success: boolean; data: { policy: RateLimitPolicyInfo; clients: RateLimitPolicyClient[] } }>(
+      `/api/v1/admin/rate-limits/policy/${encodeURIComponent(code)}/clients`
+    ),
+
+  userUsage: (userId: number) =>
+    request<{ success: boolean; data: { userId: number; rows: RateLimitUserRow[] } }>(
+      `/api/v1/admin/rate-limits/user/${userId}/usage`
+    ),
+
+  userUsageByEmail: (email: string) =>
+    request<{ success: boolean; data: { userId: number; rows: RateLimitUserRow[] } }>(
+      `/api/v1/admin/rate-limits/user/by-email/${encodeURIComponent(email)}/usage`
+    ),
+
+  updatePolicy: (
+    code: string,
+    patch: { limit?: number; window_minutes?: number; enabled?: boolean; label?: string; description?: string }
+  ) =>
+    request<{ success: boolean; data: unknown }>(
+      `/api/v1/admin/rate-limits/policies/${encodeURIComponent(code)}`,
+      { method: "PUT", json: patch }
+    ),
+
+  reset: (payload: { target: "policy" | "user" | "ip" | "all"; code?: string; id?: number | string; email?: string }) =>
+    request<{ success: boolean; data: { cleared: number } }>("/api/v1/admin/rate-limits/reset", {
+      method: "POST",
+      json: payload,
+    }),
+};
