@@ -121,7 +121,11 @@ export default function AdminRateLimitsPage() {
 
   useEffect(() => {
     void (async () => {
-      await loadOverview(true);
+      // Non-silent: a first-load failure must surface as ErrorState. A silent
+      // load would leave `error` empty and render the empty-policies state,
+      // which is indistinguishable from a real outage (missing migration,
+      // stale Prisma client, 403) and never self-corrects.
+      await loadOverview();
       setLoading(false);
     })();
   }, [loadOverview]);
