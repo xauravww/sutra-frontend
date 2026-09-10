@@ -1151,11 +1151,13 @@ export const admin = {
     }),
 
   /* ---- Plans / packages ---- */
-  listPlans: (params: { limit?: number; offset?: number; name?: string } = {}) => {
+  listPlans: (params: { limit?: number; offset?: number; q?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.offset !== undefined) qs.set("offset", String(params.offset));
-    if (params.name) qs.set("name", params.name);
+    // Backend reads `q` (AdminPlanQueryDto); a `name` param is ignored there and
+    // the filter silently returns everything.
+    if (params.q) qs.set("q", params.q);
     const s = qs.toString();
     return request<{ success: boolean; data: { data: AdminPlan[]; total: number } }>(
       `/api/v1/admin/plans${s ? `?${s}` : ""}`

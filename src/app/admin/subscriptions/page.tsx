@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import { admin, type AdminSubscription, type AdminPlan } from "@/lib/api";
+import { admin, type AdminSubscription, type AdminPlan, type AdminUser } from "@/lib/api";
 import { useNotify } from "@/components/ui/Notify";
 import {
   PageHeader,
@@ -42,6 +42,125 @@ export default function AdminSubscriptionsPage() {
   const [form, setForm] = useState({ user_id: "", plan_id: "", status: "active", start_date: "", end_date: "" });
   const [saving, setSaving] = useState(false);
 
+  // User picker — accepts a pasted numeric id or a debounced email/name search.
+  const [userQuery, setUserQuery] = useState("");
+  const [userPicked, setUserPicked] = useState<{ id: number; email: string } | null>(null);
+  const [userResults, setUserResults] = useState<AdminUser[]>([]);
+  const [userSearching, setUserSearching] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
+  const userBoxRef = useRef<HTMLDivElement>(null);
+
+  // Plan picker — the plan list is small and loaded once, so the debounce
+  // filters client-side rather than round-tripping on every keystroke.
+  const [planQuery, setPlanQuery] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
+  const [planPicked, setPlanPicked] = useState<{ id: number; name: string } | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const planBoxRef = useRef<HTMLDivElement>(null);
+
+  const resetPickers = () => {
+    setUserQuery("");
+    setUserPicked(null);
+    setUserResults([]);
+    setUserOpen(false);
+    setUserSearching(false);
+    setPlanQuery("");
+    setPlanFilter("");
+    setPlanPicked(null);
+    setPlanOpen(false);
+  };
+
+  // Plans feed both the modal picker and the table's plan filter, so load them
+  // on mount — previously they were fetched only from openCreate/openEdit, which
+  // left the filter empty until the modal had been opened at least once.
+  useEffect(() => {
+    let cancelled = false;
+    admin
+      .listPlans({ limit: 100 })
+      .then((r) => { if (!cancelled) setPlans(r.data.data); })
+      .catch(() => { if (!cancelled) setPlans([]); })
+      .finally(() => { if (!cancelled) setPlansLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Debounce the typed plan text before it drives the client-side filter.
+  useEffect(() => {
+    const t = setTimeout(() => setPlanFilter(planQuery), 200);
+    return () => clearTimeout(t);
+  }, [planQuery]);
+
+  // Debounced lookup. A bare numeric id needs no round trip, and a query that
+  // already equals the picked user's email shouldn't re-search after selection.
+  useEffect(() => {
+    if (!modalOpen) return;
+    const term = userQuery.trim();
+    if (!term || term === userPicked?.email || /^\d+$/.test(term)) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      admin
+        .listUsers({ search: term, limit: 8 })
+        .then((r) => { if (!cancelled) setUserResults(r.data.data); })
+        .catch(() => { if (!cancelled) setUserResults([]); })
+        .finally(() => { if (!cancelled) setUserSearching(false); });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [userQuery, userPicked, modalOpen]);
+
+  // Close whichever suggestion list is open on an outside click.
+  useEffect(() => {
+    if (!userOpen && !planOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!userBoxRef.current?.contains(target)) setUserOpen(false);
+      if (!planBoxRef.current?.contains(target)) setPlanOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [userOpen, planOpen]);
+
+  /** Plans matching the debounced query; plans are few, so filter in memory. */
+  const planMatches = plans.filter((p) =>
+    p.name.toLowerCase().includes(planFilter.trim().toLowerCase())
+  );
+
+  const pickPlan = (p: AdminPlan) => {
+    setForm((f) => ({ ...f, plan_id: String(p.id) }));
+    setPlanQuery(p.name);
+    setPlanFilter(p.name);
+    setPlanPicked({ id: p.id, name: p.name });
+    setPlanOpen(false);
+  };
+
+  const onPlanQueryChange = (v: string) => {
+    setPlanQuery(v);
+    setPlanOpen(true);
+    setPlanPicked(null);
+    // Editing the text invalidates the previous choice — force a fresh pick.
+    setForm((f) => ({ ...f, plan_id: "" }));
+  };
+
+  const pickUser = (u: AdminUser) => {
+    setForm((f) => ({ ...f, user_id: String(u.id) }));
+    setUserQuery(u.email);
+    setUserPicked({ id: u.id, email: u.email });
+    setUserResults([]);
+    setUserOpen(false);
+    setUserSearching(false);
+  };
+
+  const onUserQueryChange = (v: string) => {
+    const term = v.trim();
+    const asId = /^\d+$/.test(term);
+    setUserQuery(v);
+    setUserOpen(true);
+    setUserPicked(null);
+    setUserResults([]);
+    // A pasted id is usable as-is; anything else must resolve through search.
+    setForm((f) => ({ ...f, user_id: asId ? term : "" }));
+    setUserSearching(!asId && term.length > 0);
+  };
+
   const fetchSubs = useCallback(() => {
     setLoading(true);
     admin
@@ -68,21 +187,14 @@ export default function AdminSubscriptionsPage() {
     fetchSubs();
   }, [fetchSubs]);
 
-  const loadPlans = () => {
-    if (plans.length === 0) {
-      admin.listPlans({ limit: 100 }).then((r) => setPlans(r.data.data)).catch(() => setPlans([]));
-    }
-  };
-
   const openCreate = () => {
-    loadPlans();
     setEditing(null);
     setForm({ user_id: "", plan_id: "", status: "active", start_date: new Date().toISOString().slice(0, 10), end_date: "" });
+    resetPickers();
     setModalOpen(true);
   };
 
   const openEdit = (s: AdminSubscription) => {
-    loadPlans();
     setEditing(s);
     setForm({
       user_id: String(s.user_id ?? ""),
@@ -91,7 +203,39 @@ export default function AdminSubscriptionsPage() {
       start_date: s.start_date?.slice(0, 10) ?? "",
       end_date: s.end_date?.slice(0, 10) ?? "",
     });
+    // Prefer the email so the admin sees who they're editing; fall back to the
+    // raw id when the row's user relation isn't loaded.
+    if (s.user?.email) {
+      setUserQuery(s.user.email);
+      setUserPicked({ id: s.user.id, email: s.user.email });
+    } else {
+      setUserQuery(s.user_id ? String(s.user_id) : "");
+      setUserPicked(null);
+    }
+    setUserResults([]);
+    setUserOpen(false);
+    setUserSearching(false);
+    // The list endpoint usually embeds the plan; fall back to the already-loaded
+    // plan list so an edit never opens with an empty-looking plan field.
+    const knownPlan = s.plan?.name
+      ? { id: s.plan.id, name: s.plan.name }
+      : plans.find((p) => p.id === s.plan_id);
+    if (knownPlan) {
+      setPlanQuery(knownPlan.name);
+      setPlanFilter(knownPlan.name);
+      setPlanPicked({ id: knownPlan.id, name: knownPlan.name });
+    } else {
+      setPlanQuery("");
+      setPlanFilter("");
+      setPlanPicked(null);
+    }
+    setPlanOpen(false);
     setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    resetPickers();
   };
 
   const handleSave = async () => {
@@ -111,7 +255,7 @@ export default function AdminSubscriptionsPage() {
         await admin.createSubscription(payload);
         toast("Subscription created", "success");
       }
-      setModalOpen(false);
+      closeModal();
       fetchSubs();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Save failed", "error");
@@ -267,34 +411,106 @@ export default function AdminSubscriptionsPage() {
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
           <div className="relative w-full max-w-md bg-white rounded-xl p-5">
             <h3 className="text-[15px] font-bold text-sutra-ink mb-4">
               {editing ? `Edit Subscription #${editing.id}` : "New Subscription"}
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-[13px] font-semibold text-sutra-ink-2 mb-1.5">User ID *</label>
-                <input
-                  type="number"
-                  value={form.user_id}
-                  onChange={(e) => setForm({ ...form, user_id: e.target.value })}
-                  placeholder="Numeric user id"
-                  className="w-full h-11 rounded-lg border border-sutra-line bg-white px-3.5 text-[14px] text-sutra-ink outline-none focus:border-navy"
-                />
+                <label className="block text-[13px] font-semibold text-sutra-ink-2 mb-1.5">User *</label>
+                <div ref={userBoxRef} className="relative">
+                  <input
+                    type="text"
+                    value={userQuery}
+                    onChange={(e) => onUserQueryChange(e.target.value)}
+                    onFocus={() => setUserOpen(true)}
+                    onKeyDown={(e) => { if (e.key === "Escape") setUserOpen(false); }}
+                    placeholder="Email address or numeric user id"
+                    autoComplete="off"
+                    className="w-full h-11 rounded-lg border border-sutra-line bg-white px-3.5 pr-9 text-[14px] text-sutra-ink outline-none focus:border-navy"
+                  />
+                  {userSearching && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-sutra-line border-t-navy animate-spin" aria-hidden />
+                  )}
+                  {userOpen && userResults.length > 0 && (
+                    <ul className="absolute z-20 left-0 right-0 top-[calc(100%+4px)] max-h-56 overflow-y-auto bg-white border border-sutra-line rounded-lg shadow-lg py-1">
+                      {userResults.map((u) => (
+                        <li key={u.id}>
+                          <button
+                            type="button"
+                            onClick={() => pickUser(u)}
+                            className="w-full text-left px-3 py-2 hover:bg-tint transition-colors"
+                          >
+                            <span className="block text-[13px] font-semibold text-sutra-ink truncate">{u.email}</span>
+                            <span className="block text-[11px] text-sutra-ink-3">
+                              #{u.id}
+                              {[u.first_name, u.last_name].filter(Boolean).length > 0 && ` · ${[u.first_name, u.last_name].filter(Boolean).join(" ")}`}
+                              {u.role && ` · ${u.role}`}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {userOpen && !userSearching && userResults.length === 0
+                    && userQuery.trim() !== "" && !userPicked && !/^\d+$/.test(userQuery.trim()) && (
+                    <p className="absolute z-20 left-0 right-0 top-[calc(100%+4px)] bg-white border border-sutra-line rounded-lg shadow-lg px-3 py-2 text-[12.5px] text-sutra-ink-3">
+                      No users match “{userQuery.trim()}”
+                    </p>
+                  )}
+                </div>
+                <p className="text-[11.5px] text-sutra-ink-3 mt-1">
+                  {userPicked
+                    ? `Selected user #${userPicked.id}`
+                    : /^\d+$/.test(userQuery.trim())
+                      ? `Using user id #${userQuery.trim()}`
+                      : "Type an email to search, or paste a numeric user id."}
+                </p>
               </div>
               <div>
                 <label className="block text-[13px] font-semibold text-sutra-ink-2 mb-1.5">Plan *</label>
-                <select
-                  value={form.plan_id}
-                  onChange={(e) => setForm({ ...form, plan_id: e.target.value })}
-                  className="w-full h-11 rounded-lg border border-sutra-line bg-white px-3.5 text-[14px] text-sutra-ink outline-none focus:border-navy cursor-pointer"
-                >
-                  <option value="">Select plan</option>
-                  {plans.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                <div ref={planBoxRef} className="relative">
+                  <input
+                    type="text"
+                    value={planQuery}
+                    onChange={(e) => onPlanQueryChange(e.target.value)}
+                    onFocus={() => setPlanOpen(true)}
+                    onKeyDown={(e) => { if (e.key === "Escape") setPlanOpen(false); }}
+                    placeholder={plansLoading ? "Loading plans…" : "Search plan by name"}
+                    autoComplete="off"
+                    className="w-full h-11 rounded-lg border border-sutra-line bg-white px-3.5 text-[14px] text-sutra-ink outline-none focus:border-navy"
+                  />
+                  {planOpen && planMatches.length > 0 && (
+                    <ul className="absolute z-20 left-0 right-0 top-[calc(100%+4px)] max-h-56 overflow-y-auto bg-white border border-sutra-line rounded-lg shadow-lg py-1">
+                      {planMatches.map((p) => (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            onClick={() => pickPlan(p)}
+                            className="w-full text-left px-3 py-2 hover:bg-tint transition-colors"
+                          >
+                            <span className="block text-[13px] font-semibold text-sutra-ink truncate">{p.name}</span>
+                            <span className="block text-[11px] text-sutra-ink-3">
+                              #{p.id}
+                              {p.price_monthly != null && ` · ₹${p.price_monthly}/mo`}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {planOpen && planMatches.length === 0 && (
+                    <p className="absolute z-20 left-0 right-0 top-[calc(100%+4px)] bg-white border border-sutra-line rounded-lg shadow-lg px-3 py-2 text-[12.5px] text-sutra-ink-3">
+                      {plans.length === 0
+                        ? "No plans configured yet."
+                        : `No plans match “${planQuery.trim()}”`}
+                    </p>
+                  )}
+                </div>
+                <p className="text-[11.5px] text-sutra-ink-3 mt-1">
+                  {planPicked ? `Selected ${planPicked.name}` : "Search and pick a plan."}
+                </p>
               </div>
               <div>
                 <label className="block text-[13px] font-semibold text-sutra-ink-2 mb-1.5">Status</label>
@@ -338,7 +554,7 @@ export default function AdminSubscriptionsPage() {
                 {saving ? "Saving..." : editing ? "Update" : "Create"}
               </button>
               <button
-                onClick={() => setModalOpen(false)}
+                onClick={closeModal}
                 className="inline-flex items-center rounded-xl border border-sutra-line bg-white px-5 h-11 text-[14px] font-semibold text-sutra-ink-2 hover:bg-tint transition-colors"
               >
                 Cancel
