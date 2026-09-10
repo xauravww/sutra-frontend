@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -20,6 +20,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -57,21 +58,41 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     : "Admin";
   const panelTitle = `${roleTitle} Panel`;
 
-  const sidebarContent = (
+  /**
+   * Sidebar body, shared by the desktop rail and the mobile drawer.
+   *
+   * Collapse is a desktop-only affordance. The drawer is always full width with
+   * labels, and closes with its own X — previously the drawer inherited the
+   * collapse toggle from this footer while the matching expand button was
+   * desktop-only, so collapsing on a phone left no way to expand again.
+   */
+  const renderSidebar = (mobile = false) => {
+    const slim = collapsed && !mobile;
+
+    return (
     <div
       className={`h-full bg-white border-r border-sutra-line flex flex-col transition-all duration-300 ease-in-out ${
-        collapsed ? "w-[68px]" : "w-64"
+        slim ? "w-[68px]" : "w-64"
       }`}
     >
       {/* Header */}
       <div
         className={`flex items-center border-b border-sutra-line ${
-          collapsed ? "justify-center py-3.5" : "justify-start px-4 py-3.5"
+          slim ? "justify-center py-3.5" : "justify-between px-4 py-3.5"
         }`}
       >
         <Link href="/admin" className="no-underline">
           <Logo className="h-6 w-auto" />
         </Link>
+        {mobile && (
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="p-1.5 -mr-1 rounded-lg text-sutra-ink-3 hover:bg-sutra-bg hover:text-sutra-ink transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" strokeWidth={1.8} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -84,9 +105,9 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 <Link
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  title={collapsed ? item.label : undefined}
+                  title={slim ? item.label : undefined}
                   className={`group relative flex items-center rounded-lg transition-colors ${
-                    collapsed ? "justify-center w-11 h-11 mx-auto" : "gap-2.5 px-3 py-2.5"
+                    slim ? "justify-center w-11 h-11 mx-auto" : "gap-2.5 px-3 py-2.5"
                   } ${
                     active
                       ? "bg-tint text-navy"
@@ -97,7 +118,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-navy rounded-r-full" />
                   )}
                   <item.icon className="w-[20px] h-[20px] flex-none" strokeWidth={1.7} />
-                  {!collapsed && (
+                  {!slim && (
                     <span className="text-[13.5px] font-semibold truncate">{item.label}</span>
                   )}
                 </Link>
@@ -109,7 +130,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
 
       {/* Footer */}
       <div className="border-t border-sutra-line p-2.5 space-y-2">
-        {!collapsed && user && (
+        {!slim && user && (
           <Link
             href="/profile"
             className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-sutra-bg transition-colors no-underline"
@@ -126,14 +147,14 @@ export default function AdminShell({ children }: { children: ReactNode }) {
         <button
           onClick={logout}
           className={`flex items-center rounded-lg transition-colors text-sutra-ink-2 hover:bg-red-50 hover:text-red-700 ${
-            collapsed ? "justify-center w-11 h-11 mx-auto" : "gap-2.5 px-3 py-2.5 w-full"
+            slim ? "justify-center w-11 h-11 mx-auto" : "gap-2.5 px-3 py-2.5 w-full"
           }`}
-          title={collapsed ? "Sign out" : undefined}
+          title={slim ? "Sign out" : undefined}
         >
           <LogOut className="w-[20px] h-[20px] flex-none" strokeWidth={1.7} />
-          {!collapsed && <span className="text-[13.5px] font-semibold">Sign out</span>}
+          {!slim && <span className="text-[13.5px] font-semibold">Sign out</span>}
         </button>
-        {!collapsed && (
+        {!slim && !mobile && (
           <div className="text-center">
             <button
               onClick={() => setCollapsed(true)}
@@ -146,18 +167,35 @@ export default function AdminShell({ children }: { children: ReactNode }) {
         )}
       </div>
     </div>
-  );
+    );
+  };
+
+  // While the drawer is open: Escape closes it, and the page behind stops
+  // scrolling so the drawer does not drag the document with it.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileOpen]);
 
   return (
     <div className="min-h-dvh bg-sutra-bg flex">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block flex-shrink-0 sticky top-0 h-dvh">{sidebarContent}</aside>
+      <aside className="hidden lg:block flex-shrink-0 sticky top-0 h-dvh">{renderSidebar()}</aside>
 
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <div className="absolute inset-y-0 left-0 w-64">{sidebarContent}</div>
+          <div className="absolute inset-y-0 left-0 w-64 shadow-xl">{renderSidebar(true)}</div>
         </div>
       )}
 
