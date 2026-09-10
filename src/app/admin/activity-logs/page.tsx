@@ -103,14 +103,23 @@ export default function AdminActivityLogsPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  const renderCompact = (a: AdminAuditLog): string => {
-    if (a.details == null) return "";
-    if (typeof a.details === "string") return a.details;
-    try {
-      return JSON.stringify(a.details);
-    } catch {
-      return String(a.details);
+  // IP recorded on the log's details blob, or "" when the action carries none.
+  // Node reports IPv4 clients as IPv4-mapped IPv6 (`::ffff:1.2.3.4`) — strip the
+  // prefix so the column reads as a plain address.
+  const logIp = (a: AdminAuditLog): string => {
+    const raw = a.details;
+    if (raw == null) return "";
+    let obj: unknown = raw;
+    if (typeof raw === "string") {
+      try {
+        obj = JSON.parse(raw);
+      } catch {
+        return "";
+      }
     }
+    if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return "";
+    const ip = (obj as Record<string, unknown>).ip;
+    return typeof ip === "string" && ip ? ip.replace(/^::ffff:/i, "") : "";
   };
 
   // Parse details into a flat key→value map so admins see readable rows
@@ -222,7 +231,7 @@ export default function AdminActivityLogsPage() {
               <tr>
                 <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">ID</th>
                 <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Action</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Details</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">IP</th>
                 <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">User</th>
                 <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Timestamp</th>
                 <th className="px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">Actions</th>
@@ -248,15 +257,15 @@ export default function AdminActivityLogsPage() {
                         {a.action ?? "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-[12.5px] text-sutra-ink-2 max-w-[380px]">
-                      <p className="truncate font-mono text-[11.5px]">{renderCompact(a).slice(0, 200) || "—"}</p>
-                    </td>
+                    <td className="px-4 py-3.5 text-[12px] text-sutra-ink-2 whitespace-nowrap font-mono">{logIp(a) || "—"}</td>
                     <td className="px-4 py-3.5 text-[12.5px] text-sutra-ink-2 truncate max-w-[220px]">
                       {system ? (
                         <span className="text-[11px] font-bold uppercase tracking-wider text-sutra-ink-3">System</span>
                       ) : (
                         <div className="min-w-0">
-                          <p className="truncate">{a.user?.email ?? "—"}</p>
+                          <p className="truncate">
+                            {a.user?.email ?? (a.user_id ? `#${a.user_id}` : "—")}
+                          </p>
                           {imp && (
                             <p className="text-[11px] font-semibold text-amber-ink truncate" title={`Impersonated by ${imp}`}>
                               via {imp}
