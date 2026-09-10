@@ -17,6 +17,12 @@ import {
 
 const PAGE_SIZE = 20;
 
+// Filter options for mediation cases. The CVO review stages
+// (`awaiting_cvo_review`, `cvo_reviewed`) still exist in the backend CaseStatus
+// enum and in legacy rows, but the CVO workflow is no longer run — offering it
+// here only made admins think there was a step they had to perform. Rows that
+// carry those statuses still render correctly via StatusBadge, and can still be
+// reached by search rather than by status filter.
 const CASE_STATUSES = [
   { value: "intake", label: "Intake" },
   { value: "awaiting_document_upload", label: "Awaiting Documents" },
@@ -24,8 +30,6 @@ const CASE_STATUSES = [
   { value: "advance_analysis", label: "Advance Analysis" },
   { value: "ai_analysis", label: "AI Analysis" },
   { value: "awaiting_officer_review", label: "Awaiting Officer Review" },
-  { value: "awaiting_cvo_review", label: "Awaiting CVO Review" },
-  { value: "cvo_reviewed", label: "CVO Reviewed" },
   { value: "awaiting_legal_review", label: "Awaiting Legal Review" },
   { value: "legal_reviewed", label: "Legal Reviewed" },
   { value: "finalized", label: "Finalized" },
