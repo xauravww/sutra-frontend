@@ -1659,14 +1659,15 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {/* ═══ Case Assistant FAB ═══ */}
-      <button onClick={() => setChatOpen(!chatOpen)}
-        aria-label="Case assistant"
-        className={`fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 w-14 h-14 sm:w-[60px] sm:h-[60px] rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${chatOpen ? "bg-sutra-ink text-white" : "bg-navy text-white hover:bg-navy-dark hover:scale-105 shadow-navy/25"}`}>
-        {chatOpen
-          ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 sm:w-6 sm:h-6"><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg>
-          : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 sm:w-[26px] sm:h-[26px]"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" /></svg>}
-      </button>
+      {/* ═══ Case Assistant FAB — hidden while the panel is open, which carries
+          its own close button; showing a second X here made two. ═══ */}
+      {!chatOpen && (
+        <button onClick={() => setChatOpen(true)}
+          aria-label="Case assistant"
+          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 w-14 h-14 sm:w-[60px] sm:h-[60px] rounded-full shadow-lg flex items-center justify-center transition-all duration-300 bg-navy text-white hover:bg-navy-dark hover:scale-105 shadow-navy/25">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 sm:w-[26px] sm:h-[26px]"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" /></svg>
+        </button>
+      )}
 
       {!chatOpen && chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === "assistant" && (
         <span className="fixed bottom-[68px] sm:bottom-[76px] right-5 sm:right-6 z-50 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow">1</span>

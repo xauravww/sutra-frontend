@@ -795,11 +795,14 @@ export default function MediationSessionPage() {
         </div>
       </main>
 
-      {/* ═══ Chat FAB ═══ */}
-      <button onClick={() => setChatOpen(!chatOpen)}
-        className={`fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 w-14 h-14 sm:w-[60px] sm:h-[60px] rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${chatOpen ? "bg-sutra-ink text-white" : "bg-navy text-white hover:bg-navy-dark hover:scale-105 shadow-navy/25"}`}>
-        {chatOpen ? <I.X className="w-5 h-5 sm:w-6 sm:h-6" /> : <I.Chat className="w-6 h-6 sm:w-[26px] sm:h-[26px]" />}
-      </button>
+      {/* ═══ Chat FAB — hidden while the panel is open, which carries its own
+          close button; showing a second X here made two. ═══ */}
+      {!chatOpen && (
+        <button onClick={() => setChatOpen(true)}
+          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 w-14 h-14 sm:w-[60px] sm:h-[60px] rounded-full shadow-lg flex items-center justify-center transition-all duration-300 bg-navy text-white hover:bg-navy-dark hover:scale-105 shadow-navy/25">
+          <I.Chat className="w-6 h-6 sm:w-[26px] sm:h-[26px]" />
+        </button>
+      )}
 
       {!chatOpen && chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === "assistant" && (
         <span className="fixed bottom-[68px] sm:bottom-[76px] right-5 sm:right-6 z-50 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow">1</span>
