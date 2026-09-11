@@ -424,7 +424,8 @@ export default function AdminCasesPage() {
           <div className="relative w-full max-w-lg bg-white rounded-xl p-5">
             <h3 className="text-[15px] font-bold text-sutra-ink mb-1">Create Case</h3>
             <p className="text-[13px] text-sutra-ink-3 mb-4">
-              Assign the mediation officer who will work the case.
+              Assign the officer who will work the case. The officer owns it: it is
+              the only practitioner account that can see the case in their own list.
             </p>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
@@ -461,6 +462,10 @@ export default function AdminCasesPage() {
                   placeholder="Search officer..."
                   emptyHint="No practitioner accounts yet — create one in Users first"
                 />
+                <p className="text-[12px] text-sutra-ink-3 mt-1.5">
+                  Required. This is the legal practitioner assigned to the case — the
+                  case does not appear in anyone&apos;s list until one is set.
+                </p>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
@@ -763,6 +768,10 @@ export default function AdminCasesPage() {
                   placeholder="Search officer..."
                   emptyHint="No practitioner accounts yet — create one in Users first"
                 />
+                <p className="text-[12px] text-sutra-ink-3 mt-1.5">
+                  Reassigning moves the case to the new officer&apos;s list — the
+                  previous officer loses access to it.
+                </p>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
