@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import TopBar from "@/components/TopBar";
 import { Spinner } from "@/components/ui/Button";
-import { judicialCases, type JudicialCaseDetail, type JudicialDocument, type JudicialCaseCard } from "@/lib/api";
+import { judicialCases, ApiError, type JudicialCaseDetail, type JudicialDocument, type JudicialCaseCard } from "@/lib/api";
 import { corpusService, type CorpusSearchHit } from "@/lib/corpus";
 import { useNotify } from "@/components/ui/Notify";
 import Markdown from "react-markdown";
@@ -288,8 +288,13 @@ export default function CaseDetailPage() {
   /* ─── Case Assistant chat ─── */
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
+  // `retry` holds the question a failed reply belongs to, so the bubble can
+  // offer a Retry that re-asks it (bug #1662).
+  const [chatMessages, setChatMessages] = useState<{ role: string; content: string; failed?: boolean; retry?: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  // True once a reply has been pending long enough to warrant saying so.
+  const [chatSlow, setChatSlow] = useState(false);
+  const chatSlowTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chatEnd = useRef<HTMLDivElement>(null);
 
   /* ─── User-defined quick access cards ─── */
@@ -439,13 +444,34 @@ export default function CaseDetailPage() {
     if (!query || chatLoading) return;
     setChatMessages(p => [...p, { role: "user", content: query }]);
     setChatLoading(true);
+    // Long model calls legitimately take a while; say so at 15s rather than
+    // leaving three bouncing dots as the only signal (bug #1662).
+    setChatSlow(false);
+    chatSlowTimer.current = setTimeout(() => setChatSlow(true), 15_000);
     try {
       const r = await judicialCases.chat(caseId, query);
       setChatMessages(p => [...p, { role: "assistant", content: r.data?.answer ?? "No response." }]);
-    } catch {
-      setChatMessages(p => [...p, { role: "assistant", content: "Failed to get response." }]);
+    } catch (err) {
+      // Keep the server's own explanation (timeout, 401, 500 body message)
+      // instead of collapsing every failure into one generic line.
+      const reason = err instanceof ApiError && err.message ? err.message : "Failed to get response.";
+      setChatMessages(p => [...p, { role: "assistant", content: reason, failed: true, retry: query }]);
+    } finally {
+      clearTimeout(chatSlowTimer.current);
+      setChatSlow(false);
+      setChatLoading(false);
     }
-    setChatLoading(false);
+  };
+
+  /* Re-ask the question a failed reply belonged to, dropping the error bubble. */
+  const retryChat = (query: string) => {
+    if (chatLoading) return;
+    setChatMessages(p => {
+      const next = [...p];
+      while (next.length && next[next.length - 1].retry) next.pop();
+      return next;
+    });
+    sendChatQuery(query);
   };
 
   const doChat = async () => {
@@ -1686,10 +1712,26 @@ export default function CaseDetailPage() {
             {chatMessages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "user" ? <div className="max-w-[85%] px-3.5 py-2.5 rounded-2xl text-[13px] sm:text-[14px] leading-relaxed bg-navy text-white rounded-br-md">{m.content}</div>
+                : m.failed ? (
+                  <div className="max-w-[85%] px-3.5 py-2.5 rounded-2xl rounded-bl-md text-[13px] sm:text-[14px] leading-relaxed bg-red-50 border border-red-200 text-red-800">
+                    <p>{m.content}</p>
+                    {m.retry && (
+                      <button
+                        type="button"
+                        onClick={() => retryChat(m.retry!)}
+                        disabled={chatLoading}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-2.5 py-1 text-[12px] font-semibold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                )
                 : <div className="max-w-[85%] px-3.5 py-2.5 rounded-2xl text-[13px] sm:text-[14px] leading-relaxed bg-[#F4F6F8] text-sutra-ink border border-sutra-line-2 rounded-bl-md chat-markdown"><Markdown>{m.content}</Markdown></div>}
               </div>
             ))}
-            {chatLoading && <div className="flex justify-start"><div className="bg-[#F4F6F8] border border-sutra-line-2 rounded-2xl rounded-bl-md px-4 py-3"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:0ms]" /><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:150ms]" /><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:300ms]" /></div></div></div>}
+            {chatLoading && <div className="flex justify-start"><div className="bg-[#F4F6F8] border border-sutra-line-2 rounded-2xl rounded-bl-md px-4 py-3"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:0ms]" /><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:150ms]" /><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:300ms]" /></div>{chatSlow && <p className="mt-2 text-[11.5px] text-sutra-ink-3">Still working — a long case can take up to two minutes.</p>}</div></div>}
             <div ref={chatEnd} />
           </div>
           <div className="px-4 sm:px-5 py-3 border-t border-sutra-line bg-white flex-none">

@@ -7,16 +7,33 @@
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3015";
 
+/**
+ * How long to wait for an AI reply before giving up (bug #1662).
+ *
+ * Model answers on a long case legitimately take tens of seconds, so this is
+ * deliberately generous — it exists to bound the wait, not to hurry it. What
+ * it replaces is no limit at all: a stalled upstream call left the chat
+ * spinning until the browser's own multi-minute fetch timeout, then reported
+ * "Failed to get response." with nothing to act on.
+ */
+export const AI_CHAT_TIMEOUT_MS = 120_000;
+
 /* ------------------------------------------------------------------ */
 /*  Generic fetch wrapper                                              */
 /* ------------------------------------------------------------------ */
 
-type ApiOptions = RequestInit & { json?: unknown };
+/**
+ * `timeoutMs` aborts the request after that many milliseconds and turns the
+ * abort into a readable ApiError. AI endpoints (case/mediation chat) set it so
+ * a stalled model call fails in bounded time with an explanation instead of
+ * spinning indefinitely and then reporting a generic failure (bug #1662).
+ */
+type ApiOptions = RequestInit & { json?: unknown; timeoutMs?: number };
 
 /** Shared fetch helper — reused by the admin/corpus service modules. */
 export async function request<T = unknown>(
   path: string,
-  { json, ...init }: ApiOptions = {}
+  { json, timeoutMs, signal, ...init }: ApiOptions = {}
 ): Promise<T> {
   const headers: Record<string, string> = {
     "X-Requested-With": "XMLHttpRequest",
@@ -34,17 +51,35 @@ export async function request<T = unknown>(
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
+  // Only install our own abort when the caller did not bring a signal, so a
+  // caller that cancels (unmount, new query) keeps full control.
+  let controller: AbortController | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs && timeoutMs > 0 && !signal) {
+    controller = new AbortController();
+    timer = setTimeout(() => controller!.abort(), timeoutMs);
+  }
+
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       ...init,
       headers,
       credentials: "include",
+      signal: signal ?? controller?.signal,
     });
   } catch {
+    if (controller?.signal.aborted) {
+      throw new ApiError(
+        0,
+        `The server did not respond within ${Math.round(timeoutMs! / 1000)} seconds. It may still be processing — please try again.`
+      );
+    }
     // Network failure (server down, no connection) — surface a readable
     // message instead of the browser's raw "Failed to fetch".
     throw new ApiError(0, "Unable to reach the server. Please check your connection and try again.");
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 
   if (!res.ok) {
@@ -343,6 +378,7 @@ export const mediation = {
     request(`/api/v1/mediation/sessions/${id}/chat`, {
       method: "POST",
       json: { question },
+      timeoutMs: AI_CHAT_TIMEOUT_MS,
     }),
 
   uploadDocument: (id: number, file: File, partyType: "PARTY_A" | "PARTY_B", documentType = "OTHER") => {
@@ -606,6 +642,7 @@ export const judicialCases = {
     }>(`/api/v1/judicial-cases/${id}/chat`, {
       method: "POST",
       json: { question },
+      timeoutMs: AI_CHAT_TIMEOUT_MS,
     }),
 
   /* User-defined quick access cards */
