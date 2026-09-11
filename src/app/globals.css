@@ -288,6 +288,22 @@
   font-weight: 700;
 }
 
+/* Avatar initials and the notification count are decoration with a
+   data attribute behind them (bugs #1610, #1611).
+
+   Painted by CSS rather than written into the DOM as text, so they do not
+   concatenate into the text of the link or button that wraps them — an
+   avatar initial used to read as part of the username ("Oowner") and the
+   unread badge as a bare number. Both controls name themselves through
+   aria-label instead, and the elements are aria-hidden. */
+.avatar-initial::after {
+  content: attr(data-initial);
+}
+
+.notif-badge::after {
+  content: attr(data-count);
+}
+
 ::selection {
   background: var(--color-tint-2);
 }

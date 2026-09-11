@@ -135,9 +135,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
             href="/profile"
             className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-sutra-bg transition-colors no-underline"
           >
-            <span className="w-8 h-8 rounded-full bg-navy text-white grid place-items-center font-bold text-[13px] flex-none">
-              {initials}
-            </span>
+            <span
+              aria-hidden="true"
+              data-initial={initials}
+              className="avatar-initial w-8 h-8 rounded-full bg-navy text-white grid place-items-center font-bold text-[13px] flex-none"
+            />
             <span className="min-w-0">
               <span className="block text-[13px] font-semibold text-sutra-ink truncate">{name}</span>
               <span className="block text-[11px] text-sutra-ink-3 capitalize">{user.role.replace(/_/g, " ")}</span>
@@ -233,9 +235,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 href="/profile"
                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-sutra-bg transition-colors no-underline"
               >
-                <span className="w-8 h-8 rounded-full bg-navy text-white grid place-items-center font-bold text-[13px] flex-none">
-                  {initials}
-                </span>
+                <span
+                  aria-hidden="true"
+                  data-initial={initials}
+                  className="avatar-initial w-8 h-8 rounded-full bg-navy text-white grid place-items-center font-bold text-[13px] flex-none"
+                />
                 <span className="hidden sm:block text-left">
                   <span className="block text-[12.5px] font-semibold text-sutra-ink truncate max-w-[140px]">{name}</span>
                   <span className="block text-[10.5px] text-sutra-ink-3 capitalize">{user.role.replace(/_/g, " ")}</span>

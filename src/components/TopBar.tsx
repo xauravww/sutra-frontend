@@ -153,7 +153,13 @@ export default function TopBar() {
               className={`w-[38px] h-[38px] sm:w-[46px] sm:h-[46px] rounded-[10px] sm:rounded-[11px] border border-sutra-line bg-white grid place-items-center relative hover:border-[#C6CDD7] hover:bg-[#FCFDFE] transition-colors flex-none ${
                 open ? "text-navy border-navy/40 bg-tint/60" : "text-sutra-ink-2"
               }`}
-              aria-label={open ? "Close notifications" : "Open notifications"}
+              aria-label={
+                open
+                  ? "Close notifications"
+                  : unread > 0
+                    ? `Open notifications, ${unread} unread`
+                    : "Open notifications"
+              }
               aria-haspopup="true"
               aria-expanded={open}
             >
@@ -161,10 +167,13 @@ export default function TopBar() {
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
                 <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
               </svg>
+              {/* Decorative — the count is already in the button's label. */}
               {unread > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center border-2 border-white">
-                  {unread > 99 ? "99+" : unread}
-                </span>
+                <span
+                  aria-hidden="true"
+                  data-count={unread > 99 ? "99+" : String(unread)}
+                  className="notif-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center border-2 border-white"
+                />
               )}
             </button>
 
@@ -233,12 +242,17 @@ export default function TopBar() {
           {user && (
             <Link
               href="/profile"
+              aria-label={`Your profile — ${user.email.split("@")[0]}`}
               className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 border border-sutra-line rounded-full bg-white no-underline hover:border-[#C6CDD7] transition-colors flex-none"
             >
-              <span className="w-[32px] h-[32px] rounded-full bg-navy text-white grid place-items-center font-bold text-[14px]">
-                {user.email.charAt(0).toUpperCase()}
-              </span>
-              <b className="text-[14px] font-semibold text-sutra-ink max-w-[100px] truncate">{user.email.split("@")[0]}</b>
+              {/* Initial is drawn from data-initial so it stays out of the
+                  link's text, which otherwise read "Oowner" (#1610). */}
+              <span
+                aria-hidden="true"
+                data-initial={user.email.charAt(0).toUpperCase()}
+                className="avatar-initial w-[32px] h-[32px] rounded-full bg-navy text-white grid place-items-center font-bold text-[14px]"
+              />
+              <b aria-hidden="true" className="text-[14px] font-semibold text-sutra-ink max-w-[100px] truncate">{user.email.split("@")[0]}</b>
             </Link>
           )}
 
@@ -246,10 +260,10 @@ export default function TopBar() {
           {user && (
             <Link
               href="/profile"
-              className="sm:hidden w-[36px] h-[36px] rounded-full bg-navy text-white grid place-items-center font-bold text-[14px] no-underline flex-none"
-            >
-              {user.email.charAt(0).toUpperCase()}
-            </Link>
+              aria-label="Your profile"
+              className="sm:hidden w-[36px] h-[36px] rounded-full bg-navy text-white grid place-items-center font-bold text-[14px] no-underline flex-none avatar-initial"
+              data-initial={user.email.charAt(0).toUpperCase()}
+            />
           )}
 
           <button
