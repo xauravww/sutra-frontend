@@ -337,7 +337,7 @@ export default function AdminRateLimitsPage() {
       {loading ? (
         <div className="bg-white border border-sutra-line rounded-xl p-10 text-center text-[14px] text-sutra-ink-3">Loading policies…</div>
       ) : policies.length === 0 ? (
-        <EmptyState title="No rate-limit policies" description="Policies register themselves the first time their endpoint is hit, or once a limiter is mounted." />
+        <EmptyState title="No rate-limit policies" description="Every policy is registered on server start. If this stays empty, the backend could not reach its database — reload, and check the server log for a pre-registration failure." />
       ) : (
         <div className="space-y-5">
           {/* Top stat cards */}
