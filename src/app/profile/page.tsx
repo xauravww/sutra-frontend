@@ -83,7 +83,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-dvh">
         <TopBar />
-        <main className="max-w-[640px] mx-auto px-6 py-8">
+        <main id="main-content" tabIndex={-1} className="max-w-[640px] mx-auto px-6 py-8">
           <div className="space-y-4">
             <div className="h-8 w-40 bg-sutra-line-2 rounded animate-pulse" />
             {[1, 2, 3, 4].map((i) => (
@@ -106,7 +106,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-dvh">
       <TopBar />
-      <main className="max-w-[640px] mx-auto px-4 sm:px-6 py-8 pb-21">
+      <main id="main-content" tabIndex={-1} className="max-w-[640px] mx-auto px-4 sm:px-6 py-8 pb-21">
         <h1 className="text-[28px] font-bold tracking-tight mb-1">Profile</h1>
         <p className="text-[15px] text-sutra-ink-3 mb-8">
           Manage your personal and professional details

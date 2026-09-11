@@ -91,7 +91,7 @@ export default function VerifyEmailPage() {
         <Logo className="h-7 sm:h-8 w-auto" />
       </header>
 
-      <main className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
         <Suspense
           fallback={
             <div className="w-full max-w-[380px] rounded-xl border border-sutra-line bg-white p-5 sm:p-7 space-y-4">

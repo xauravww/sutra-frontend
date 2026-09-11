@@ -246,7 +246,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-6 pb-16 max-w-[1200px] w-full mx-auto">{children}</main>
+        <main id="main-content" tabIndex={-1} className="flex-1 px-4 sm:px-6 lg:px-8 pt-6 pb-16 max-w-[1200px] w-full mx-auto">{children}</main>
       </div>
     </div>
   );

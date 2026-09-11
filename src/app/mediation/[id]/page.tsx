@@ -207,9 +207,9 @@ export default function MediationSessionPage() {
     }
   };
 
-  if (loading) return <div className="min-h-dvh"><TopBar /><main className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-8"><div className="space-y-4"><div className="h-5 w-32 bg-sutra-line-2 rounded animate-pulse" /><div className="h-8 w-64 bg-sutra-line-2 rounded animate-pulse" /><div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5"><div className="h-[300px] bg-white border border-sutra-line rounded-2xl animate-pulse" /><div className="h-[300px] bg-white border border-sutra-line rounded-2xl animate-pulse" /></div></div></main></div>;
+  if (loading) return <div className="min-h-dvh"><TopBar /><main id="main-content" tabIndex={-1} className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-8"><div className="space-y-4"><div className="h-5 w-32 bg-sutra-line-2 rounded animate-pulse" /><div className="h-8 w-64 bg-sutra-line-2 rounded animate-pulse" /><div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5"><div className="h-[300px] bg-white border border-sutra-line rounded-2xl animate-pulse" /><div className="h-[300px] bg-white border border-sutra-line rounded-2xl animate-pulse" /></div></div></main></div>;
 
-  if (!session) return <div className="min-h-dvh"><TopBar /><main className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-8 text-center"><p className="text-sutra-ink-3 mb-4">Session not found.</p><Link href="/mediation" className="text-navy font-semibold hover:underline">← Back</Link></main></div>;
+  if (!session) return <div className="min-h-dvh"><TopBar /><main id="main-content" tabIndex={-1} className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-8 text-center"><p className="text-sutra-ink-3 mb-4">Session not found.</p><Link href="/mediation" className="text-navy font-semibold hover:underline">← Back</Link></main></div>;
 
   const a = session.analysis as any;
   const docs = session.documents ?? [];
@@ -282,7 +282,7 @@ export default function MediationSessionPage() {
   return (
     <div className="min-h-dvh flex flex-col">
       <TopBar />
-      <main className="flex-1 max-w-[1100px] mx-auto px-4 sm:px-6 py-5 sm:py-8 pb-24 w-full">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-[1100px] mx-auto px-4 sm:px-6 py-5 sm:py-8 pb-24 w-full">
         {/* Back / refresh row */}
         <div className="flex items-center justify-between gap-3 mb-4 sm:mb-5">
           <Link href="/mediation" className="inline-flex items-center gap-1.5 text-navy font-semibold text-[13px] sm:text-[14px] no-underline hover:text-navy-dark transition-colors group">

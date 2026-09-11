@@ -208,7 +208,7 @@ export default function CurationShell({
         </div>
       </header>
 
-      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 lg:py-8">
+      <main id="main-content" tabIndex={-1} className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 lg:py-8">
         {children}
       </main>
     </div>

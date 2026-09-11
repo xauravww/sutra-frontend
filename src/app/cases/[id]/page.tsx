@@ -747,7 +747,7 @@ export default function CaseDetailPage() {
     return (
       <div className="min-h-dvh">
         <TopBar />
-        <main className="max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full">
+        <main id="main-content" tabIndex={-1} className="max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full">
           <div className="space-y-4">
             <div className="h-7 sm:h-8 w-full max-w-[260px] bg-sutra-line-2 rounded animate-pulse" />
             <div className="h-4 w-full max-w-[180px] bg-sutra-line-2 rounded animate-pulse" />
@@ -762,7 +762,7 @@ export default function CaseDetailPage() {
     return (
       <div className="min-h-dvh">
         <TopBar />
-        <main className="max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full text-center">
+        <main id="main-content" tabIndex={-1} className="max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full text-center">
           <p className="text-[17px] text-sutra-ink-3 mb-4">Case not found</p>
           <Link href="/cases" className="text-[15px] font-semibold text-navy hover:underline">
             ← Back to cases
@@ -859,7 +859,7 @@ export default function CaseDetailPage() {
     <div className="min-h-dvh flex flex-col">
       <TopBar />
 
-      <main className="flex-1 max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-5 sm:mb-6">
           <div className="min-w-0">

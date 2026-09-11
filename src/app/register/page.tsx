@@ -24,7 +24,7 @@ export default function RegisterPage() {
         <Logo className="h-7 sm:h-8 w-auto" />
       </header>
 
-      <main className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
         {/* method="post" (bug #1605): native/pre-hydration submit defaults to
             GET, which would put the password in the URL query string. */}
         <form

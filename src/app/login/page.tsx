@@ -17,7 +17,7 @@ export default function LoginPage() {
         <Logo className="h-7 sm:h-8 w-auto" />
       </header>
 
-      <main className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
         {/* method="post" is required (bug #1605): without it a native submit —
             before hydration, or with JS disabled — falls back to GET and puts
             email/password in the query string (CWE-598), which then lands in

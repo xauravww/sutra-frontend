@@ -82,7 +82,7 @@ export default function CasesPage() {
   return (
     <div className="min-h-dvh">
       <TopBar />
-      <main className="max-w-[940px] mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-21">
+      <main id="main-content" tabIndex={-1} className="max-w-[940px] mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-21">
         {/* Page header */}
         <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
           <div>
