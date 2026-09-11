@@ -47,6 +47,40 @@
     -webkit-font-smoothing: antialiased;
     min-height: 100dvh;
   }
+
+  /*
+   * Native form-control chrome (bugs #1601, #1602, #1603).
+   *
+   * A text input or select with `appearance: auto` is painted by the browser
+   * with its own inset border and rounded box, on top of whatever CSS we set —
+   * dropping the border to `border-0` does not remove it. Sitting inside the
+   * wrapper that already draws a border (SearchInput, FilterSelect, the admin
+   * dialogs) that reads as a double border on every search box, filter and
+   * dialog on the users page. Removing the native appearance leaves only the
+   * app's own styling.
+   *
+   * Checkboxes, radios, file pickers, ranges and colour swatches keep their
+   * native appearance — they are not re-styled by the app.
+   */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  textarea,
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /*
+   * The native dropdown arrow goes with the native appearance, so draw one.
+   * Selects that render their own chevron icon override this with
+   * `[background-image:none]` (FacetSelect, the curation sort dropdown).
+   */
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7481' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 0.75rem;
+    padding-right: 2rem;
+  }
 }
 
 /* Hide scrollbar while keeping element scrollable (mobile tab strips) */

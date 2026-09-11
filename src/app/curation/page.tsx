@@ -822,7 +822,7 @@ function SortControl({
         <select
           value={sortBy}
           onChange={(e) => onSortBy(e.target.value as CorpusSortField)}
-          className="h-full appearance-none bg-white py-2 pl-3 pr-7 text-sm text-sutra-ink-2 outline-none"
+          className="h-full appearance-none [background-image:none] bg-white py-2 pl-3 pr-7 text-sm text-sutra-ink-2 outline-none"
         >
           {CORPUS_SORT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>

@@ -38,7 +38,7 @@ export default function FacetSelect({
         value={value}
         disabled={disabled || isEmpty}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full appearance-none rounded-lg border py-2 pl-3 pr-8 text-[13px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus/30 disabled:cursor-not-allowed disabled:opacity-50 ${
+        className={`w-full appearance-none [background-image:none] rounded-lg border py-2 pl-3 pr-8 text-[13px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus/30 disabled:cursor-not-allowed disabled:opacity-50 ${
           active
             ? "border-navy bg-navy font-medium text-white"
             : "border-sutra-line bg-white text-sutra-ink-2 hover:border-sutra-ink-3"
