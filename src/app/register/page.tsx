@@ -25,7 +25,10 @@ export default function RegisterPage() {
       </header>
 
       <main className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
+        {/* method="post" (bug #1605): native/pre-hydration submit defaults to
+            GET, which would put the password in the URL query string. */}
         <form
+          method="post"
           onSubmit={submit}
           className="w-full max-w-[380px] rounded-xl border border-sutra-line bg-white p-5 sm:p-7"
         >

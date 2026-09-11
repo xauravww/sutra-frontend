@@ -16,7 +16,10 @@ export default function ForgotPasswordPage() {
       </header>
 
       <main className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
+        {/* method="post" (bug #1605): keep the submitted email out of the URL
+            on a native/pre-hydration submit. */}
         <form
+          method="post"
           onSubmit={(e) => { e.preventDefault(); submit(); }}
           className="w-full max-w-[380px] rounded-xl border border-sutra-line bg-white p-5 sm:p-7"
         >

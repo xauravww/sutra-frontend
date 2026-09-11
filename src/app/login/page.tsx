@@ -18,7 +18,13 @@ export default function LoginPage() {
       </header>
 
       <main className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
+        {/* method="post" is required (bug #1605): without it a native submit —
+            before hydration, or with JS disabled — falls back to GET and puts
+            email/password in the query string (CWE-598), which then lands in
+            browser history, proxy logs and Referer headers. onSubmit still
+            preventDefaults for the normal hydrated path. */}
         <form
+          method="post"
           onSubmit={submit}
           className="w-full max-w-[380px] rounded-xl border border-sutra-line bg-white p-5 sm:p-7"
         >

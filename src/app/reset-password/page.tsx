@@ -34,8 +34,11 @@ function ResetPasswordForm() {
     );
   }
 
+  // method="post" (bug #1605): a native/pre-hydration submit without it falls
+  // back to GET and puts the new password in the query string.
   return (
     <form
+      method="post"
       onSubmit={(e) => { e.preventDefault(); submit(); }}
       className="w-full max-w-[380px] rounded-xl border border-sutra-line bg-white p-5 sm:p-7"
     >
