@@ -83,6 +83,71 @@
   }
 }
 
+/*
+ * Mobile readability (bug #1597).
+ *
+ * iOS Safari zooms the whole viewport when a focused form control is smaller
+ * than 16px, leaving the user on a magnified page with the layout scrolled
+ * sideways. The app's fields are 13-15px, so every tap on an input zoomed the
+ * page. 16px on small screens removes the zoom; desktop keeps the designed
+ * type scale.
+ *
+ * Unlayered on purpose: these rules must win over the utility classes that
+ * set the smaller sizes on each field.
+ */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/*
+ * The app's smallest meta labels are 11-11.5px, which QA measured as the
+ * "11px body font" in bug #1597 (the body itself is 17px). Raise that floor
+ * on phones. The `:not([class*="sm:…"])` guards skip elements whose small
+ * size is a deliberate responsive variant — those are already larger at this
+ * width and must not be shrunk.
+ */
+@media (max-width: 640px) {
+  [class*="text-[11px]"]:not([class*="sm:text-[11px]"]):not([class*="md:text-[11px]"]):not([class*="lg:text-[11px]"]),
+  [class*="text-[11.5px]"]:not([class*="sm:text-[11.5px]"]):not([class*="md:text-[11.5px]"]):not([class*="lg:text-[11.5px]"]) {
+    font-size: 12.5px;
+  }
+}
+
+/*
+ * Touch targets (bug #1598).
+ *
+ * QA measured 16x16 native checkbox/radio inputs and 36x36 icon-only buttons.
+ * WCAG 2.5.8 (AA) sets a 24x24 floor; Apple HIG and WCAG 2.5.5 (AAA) ask for
+ * 44x44. Touch devices only — a mouse pointer is not affected, so desktop
+ * density is unchanged.
+ *
+ * `:has(> svg:only-child)` restricts the 44px rule to icon-only buttons;
+ * text buttons and inline controls keep their size. Browsers without `:has()`
+ * ignore that rule and fall back to the current sizes, so this degrades safely.
+ * `[data-tap-compact]` opts a control out where growing it would burst its
+ * container (the clear button inside the search field).
+ */
+@media (pointer: coarse) {
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  button:has(> svg:only-child):not([data-tap-compact]),
+  select {
+    min-height: 44px;
+  }
+
+  button:has(> svg:only-child):not([data-tap-compact]) {
+    min-width: 44px;
+  }
+}
+
 /* Hide scrollbar while keeping element scrollable (mobile tab strips) */
 @utility scrollbar-hide {
   scrollbar-width: none;

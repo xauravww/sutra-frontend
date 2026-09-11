@@ -111,6 +111,7 @@ export function SearchInput({
           onClick={() => onChange("")}
           title="Clear search"
           aria-label="Clear search"
+          data-tap-compact
           className="h-6 w-6 rounded-full text-sutra-ink-3 grid place-items-center flex-none hover:bg-sutra-bg hover:text-sutra-ink transition-colors"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-[15px] h-[15px]">
