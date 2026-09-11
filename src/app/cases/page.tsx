@@ -102,14 +102,17 @@ export default function CasesPage() {
             {showNew ? (
               <>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 sm:w-[18px] sm:h-[18px]"><path d="M15 18l-6-6 6-6" /></svg>
-                <span className="hidden sm:inline">Back to Cases</span>
-                <span className="sm:hidden">Back</span>
+                {/* One text node with the tail hidden on phones (#1609) — the
+                    old sibling `<span className="hidden sm:inline">` +
+                    `<span className="sm:hidden">` pair read as "Back to
+                    CasesBack" to anything that concatenates the button's text
+                    (textContent, copy/paste, a11y text dumps). */}
+                <span>Back<span className="hidden sm:inline"> to Cases</span></span>
               </>
             ) : (
               <>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 sm:w-[22px] sm:h-[22px]"><path d="M12 5v14M5 12h14" /></svg>
-                <span className="hidden sm:inline">New Case</span>
-                <span className="sm:hidden">New</span>
+                <span>New<span className="hidden sm:inline"> Case</span></span>
               </>
             )}
           </button>

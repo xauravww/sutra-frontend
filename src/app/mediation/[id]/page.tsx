@@ -296,8 +296,7 @@ export default function MediationSessionPage() {
             className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-sutra-ink-2 bg-white border border-sutra-line rounded-lg px-2.5 py-1.5 hover:bg-tint hover:text-navy hover:border-navy/30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <svg className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /><path d="M21 3v5h-5" /></svg>
-            <span className="hidden sm:inline">{refreshing ? "Refreshing…" : "Refresh"}</span>
-            <span className="sm:hidden">{refreshing ? "…" : "Sync"}</span>
+            <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
           </button>
         </div>
 
@@ -311,8 +310,7 @@ export default function MediationSessionPage() {
             <div className="flex items-center gap-2">
               <button onClick={handleSyncFromDocs} className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-navy bg-white border border-sutra-line rounded-lg px-2.5 py-1.5 hover:bg-tint hover:border-navy/30 transition-colors" title="Re-analyze documents to update party names">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M21 12a9 9 0 1 1-6.219-8.56" /><path d="M21 3v5h-5" /></svg>
-                <span className="hidden sm:inline">Sync from Docs</span>
-                <span className="sm:hidden">Sync</span>
+                <span>Sync<span className="hidden sm:inline"> from Docs</span></span>
               </button>
               {!editing ? (
                 <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-sutra-ink-2 bg-white border border-sutra-line rounded-lg px-2.5 py-1.5 hover:bg-tint hover:border-navy/30 transition-colors">
