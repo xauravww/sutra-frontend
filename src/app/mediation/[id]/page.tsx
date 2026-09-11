@@ -1131,12 +1131,102 @@ function RichSettlementEditor({ value, onChange }: { value: string; onChange: (v
   );
 }
 
-function sanitizeRichText(html: string) {
-  return html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
-    .replace(/\s(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, "");
+/**
+ * Allow-list sanitiser for the settlement preview.
+ *
+ * This was a chain of regexes that stripped `<script>`, `<style>` and
+ * `on*="..."` handlers. Regexes cannot sanitise HTML — the handler rule only
+ * matched *quoted* values, so `<img src=x onerror=alert(1)>` (unquoted, and a
+ * perfectly valid attribute) passed straight through into
+ * `dangerouslySetInnerHTML` and executed. Reproduced in Chrome against the
+ * settlement preview: the `<img>` was created, carried its `onerror`, and the
+ * alert fired.
+ *
+ * Parsing with the browser's own HTML parser and rebuilding from an allow-list
+ * removes the whole class: unquoted attributes, mixed case, `<svg>`/`<math>`
+ * namespace tricks and malformed markup all normalise to nodes we then judge
+ * by tag and attribute name.
+ */
+const ALLOWED_TAGS = new Set([
+  "P", "BR", "HR", "DIV", "SPAN",
+  "STRONG", "B", "EM", "I", "U", "S", "SUB", "SUP", "MARK",
+  "H1", "H2", "H3", "H4", "H5", "H6",
+  "UL", "OL", "LI",
+  "BLOCKQUOTE", "PRE", "CODE",
+  "TABLE", "THEAD", "TBODY", "TFOOT", "TR", "TH", "TD",
+  "A",
+]);
+
+/** Attributes kept per tag. Anything unlisted is dropped, `on*` included. */
+const ALLOWED_ATTRS: Record<string, Set<string>> = {
+  A: new Set(["href", "title"]),
+  OL: new Set(["start"]),
+  TD: new Set(["colspan", "rowspan"]),
+  TH: new Set(["colspan", "rowspan", "scope"]),
+};
+
+/** Attributes kept on every allowed tag. */
+const GLOBAL_ATTRS = new Set(["class"]);
+
+/** Only these schemes survive on an `href`. */
+function isSafeHref(value: string): boolean {
+  const url = value.trim().toLowerCase();
+  return (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("mailto:") ||
+    url.startsWith("/") ||
+    url.startsWith("#")
+  );
+}
+
+function sanitizeRichText(html: string): string {
+  // During SSR there is no DOM to parse with. The settlement preview only ever
+  // renders after a client-side fetch has populated the notes, so there is
+  // nothing to sanitise here — emitting nothing is both safe and accurate.
+  if (typeof document === "undefined") return "";
+
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const clean = (node: Node): Node | null => {
+    if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.nodeValue ?? "");
+
+    // Drop comments and anything that is not an element.
+    if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+    const el = node as Element;
+    if (!ALLOWED_TAGS.has(el.tagName)) return null;
+
+    const out = document.createElement(el.tagName.toLowerCase());
+    const allowed = ALLOWED_ATTRS[el.tagName] ?? new Set<string>();
+
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith("on") || name === "style" || name === "srcdoc") continue;
+      if (!GLOBAL_ATTRS.has(name) && !allowed.has(name)) continue;
+      if (name === "href" && !isSafeHref(attr.value)) continue;
+      out.setAttribute(name, attr.value);
+    }
+
+    // `target="_blank"` links should not hand the opener to the destination.
+    if (el.tagName === "A" && out.getAttribute("href")?.startsWith("http")) {
+      out.setAttribute("rel", "noopener noreferrer");
+    }
+
+    for (const child of Array.from(el.childNodes)) {
+      const kept = clean(child);
+      if (kept) out.appendChild(kept);
+    }
+    return out;
+  };
+
+  const container = document.createElement("div");
+  for (const child of Array.from(template.content.childNodes)) {
+    const kept = clean(child);
+    if (kept) container.appendChild(kept);
+  }
+  return container.innerHTML;
 }
 
 function normalizeChatAnswer(payload: unknown): string {
