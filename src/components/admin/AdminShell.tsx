@@ -16,6 +16,7 @@ import {
   BookOpen,
   Coins,
   Gauge,
+  KeyRound,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -38,6 +39,7 @@ export const ADMIN_NAV: Array<{ href: string; label: string; icon: LucideIcon; o
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
   { href: "/admin/usage", label: "AI Usage", icon: Coins, ownerOnly: true },
   { href: "/admin/rate-limits", label: "Rate Limits", icon: Gauge, ownerOnly: true },
+  { href: "/admin/env-overrides", label: "Env Keys", icon: KeyRound, ownerOnly: true },
   { href: "/admin/activity-logs", label: "Activity Logs", icon: History },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
