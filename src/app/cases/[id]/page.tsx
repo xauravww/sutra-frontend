@@ -6,6 +6,10 @@ import Link from "next/link";
 import TopBar from "@/components/TopBar";
 import { Spinner } from "@/components/ui/Button";
 import { judicialCases, ApiError, type JudicialCaseDetail, type JudicialDocument, type JudicialCaseCard } from "@/lib/api";
+// Mirror of the backend's upload caps (tvsbackend/src/config/uploadLimits.config.ts)
+// so oversized or over-quota drops are stopped client-side with a clear message.
+const MAX_DOCS_PER_CASE = 20;
+const MAX_FILE_SIZE_MB = 25;
 import { corpusService, type CorpusSearchHit } from "@/lib/corpus";
 import { useNotify } from "@/components/ui/Notify";
 import Markdown from "react-markdown";
@@ -516,19 +520,37 @@ export default function CaseDetailPage() {
     if (rejected > 0) toast(`${rejected} non-PDF file(s) skipped. Only PDF is supported.`, "error");
     if (files.length === 0) return;
 
+    // Client-side mirror of the server's limits so users get feedback before a
+    // doomed multipart request (server is authoritative — see
+    // tvsbackend/src/config/uploadLimits.config.ts).
+    const existingCount = caseData?.documents?.length ?? 0;
+    const roomFor = Math.max(0, MAX_DOCS_PER_CASE - existingCount);
+    const oversized = files.filter((f) => f.size > MAX_FILE_SIZE_MB * 1024 * 1024);
+    if (oversized.length > 0) {
+      toast(`${oversized.length} file(s) exceed the ${MAX_FILE_SIZE_MB} MB per-file limit.`, "error");
+      return;
+    }
+    if (files.length > roomFor) {
+      toast(
+        roomFor === 0
+          ? `This case has reached the maximum of ${MAX_DOCS_PER_CASE} documents. Delete one before uploading.`
+          : `Only ${roomFor} more document(s) allowed — cases are capped at ${MAX_DOCS_PER_CASE}.`,
+        "error"
+      );
+      return;
+    }
+
     setUploading(true);
     try {
       const res = await judicialCases.uploadDocuments(
         caseId,
         files.map((f) => ({ file: f, docType: "OTHER" }))
       );
-      // Server auto-starts extraction; reflect that and poll for the result.
-      setCaseData({ ...res.data, status: "processing" });
-      setDocumentAnalysis(Object.fromEntries(
-        (res.data.documents ?? []).map((doc, index) => [doc.id, index === 0 ? "analyzing" : "pending"])
-      ));
-      toast(`${files.length} document(s) uploaded. Analysis started.`, "success");
-      startPolling();
+      // Analysis no longer auto-starts with upload — the user runs it
+      // explicitly from "Run Case Analysis". Just show the fresh list.
+      setCaseData(res.data);
+      setDocumentAnalysis({});
+      toast(`${files.length} document(s) uploaded. Run "Run Case Analysis" when ready.`, "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Upload failed", "error");
     } finally {
@@ -1002,7 +1024,7 @@ export default function CaseDetailPage() {
               {showSampleData && (
                 <div className="mt-3 space-y-2" aria-label="Sample court cases">
                   {sampleLoading && <p className="text-[12px] text-sutra-ink-3">Loading sample documents…</p>}
-                  {!sampleLoading && selectedSampleCase && <p className="text-[12px] text-green-700">Sample documents are uploading and analysis will start automatically.</p>}
+                  {!sampleLoading && selectedSampleCase && <p className="text-[12px] text-green-700">Sample documents are uploading — run &quot;Run Case Analysis&quot; afterwards.</p>}
                   {SAMPLE_CASES.map((sample) => (
                     <div
                       key={sample.id}
@@ -1093,6 +1115,9 @@ export default function CaseDetailPage() {
                 </p>
                 <p className="text-[12px] text-sutra-ink-3 mt-1">
                   FIR · Chargesheet · Statements · Evidence · Orders
+                </p>
+                <p className="text-[11px] text-sutra-ink-3 mt-1">
+                  Up to {MAX_DOCS_PER_CASE} documents per case · {MAX_FILE_SIZE_MB} MB per file
                 </p>
               </>
             )}
