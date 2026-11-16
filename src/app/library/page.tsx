@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/lib/auth-context";
 import { library } from "@/lib/library";
+import { ApiError } from "@/lib/api";
+import { useNotify } from "@/components/ui/Notify";
 import { corpusService, CORPUS_SORT_OPTIONS, CORPUS_COURT_TYPE_LABELS, MONTH_LABELS, type CorpusDocument, type CorpusCourtType, type CorpusFacets, type CorpusListParams, type CorpusSortField } from "@/lib/corpus";
 import { Spinner } from "@/components/ui/Button";
 import { SearchInput, FilterSelect, EmptyState, ErrorState } from "@/components/admin/ui";
@@ -59,6 +61,8 @@ export default function LibraryPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const [opening, setOpening] = useState<number | null>(null);
+  const [quota, setQuota] = useState<{ used: number; limit: number; remaining: number } | null>(null);
+  const { toast } = useNotify();
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const busyRef = useRef(false);
@@ -70,6 +74,14 @@ export default function LibraryPage() {
       router.replace(user.role === "owner" || user.role === "admin" ? "/admin" : "/workspace");
     }
   }, [user, canAccess, router]);
+
+  // Today's download quota.
+  useEffect(() => {
+    if (!canAccess) return;
+    let cancelled = false;
+    library.quota().then((q) => { if (!cancelled) setQuota(q); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [canAccess]);
 
   // Filter/sort vocabulary from the published corpus itself.
   useEffect(() => {
@@ -149,18 +161,26 @@ export default function LibraryPage() {
 
   const openDocument = useCallback(async (doc: CorpusDocument) => {
     if (opening) return;
+    if (!doc.pdf_url) {
+      toast("This document has no PDF attached.", "info");
+      return;
+    }
     setOpening(doc.id);
     try {
-      const source = await corpusService.getPublishedSource(doc.id);
-      if (source.pdf_url) {
-        window.open(source.pdf_url, "_blank", "noopener,noreferrer");
+      const { url, quota } = await library.sign(doc.pdf_url);
+      setQuota(quota);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 429) {
+        toast(e.message, "error");
+        library.quota().then(setQuota).catch(() => {});
+      } else {
+        toast(e instanceof Error ? e.message : "Failed to open document.", "error");
       }
-    } catch {
-      // leave enabled so the user can retry
     } finally {
       setOpening(null);
     }
-  }, [opening]);
+  }, [opening, toast]);
 
   const toOptions = (values: string[] | undefined) =>
     (values ?? []).map((v) => ({
@@ -217,6 +237,14 @@ export default function LibraryPage() {
           <p className="text-[14px] sm:text-[15px] text-sutra-ink-3 mt-1">
             Case-law corpus documents — search, filter and sort, then open the judgment.
           </p>
+          {quota && (
+            <p className="text-[12px] text-sutra-ink-3 mt-1">
+              Downloads left today: <b className="text-navy">{quota.remaining}</b> / {quota.limit}
+            </p>
+          )}
+          <div className="mt-3 rounded-xl border border-sutra-line bg-tint/40 px-3.5 py-2.5 text-[12.5px] text-sutra-ink-2">
+            Note: each generated download link stays valid for 1 hour from creation. Reusing a saved link within that window does not consume extra daily quota.
+          </div>
         </div>
 
         <section className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-5">
