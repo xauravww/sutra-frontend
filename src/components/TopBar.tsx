@@ -131,6 +131,11 @@ export default function TopBar() {
               Mediation
             </Link>
           )}
+          {(isJudiciary || isPractitioner) && (
+            <Link href="/library" className="hidden sm:inline-block text-sm font-semibold text-sutra-ink-2 hover:text-navy px-3 py-2 rounded-lg transition-colors">
+              Library
+            </Link>
+          )}
           {isAdmin && (
             <Link href="/admin" className="hidden sm:inline-block text-sm font-semibold text-sutra-ink-2 hover:text-navy px-3 py-2 rounded-lg transition-colors">
               Admin
