@@ -28,6 +28,7 @@ const I = {
   Chat: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" /></svg>,
   Sparkles: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" /><path d="M20 3v4M22 5h-4" /></svg>,
   ChevronL: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={gc(p, "w-4 h-4")}><path d="M15 18l-6-6 6-6" /></svg>,
+  ChevronR: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={gc(p, "w-4 h-4")}><path d="M9 18l6-6-6-6" /></svg>,
   X: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={gc(p, "w-4 h-4")}><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg>,
   Send: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><path d="m21.854 2.147-10.94 10.939" /></svg>,
   Star: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
@@ -56,6 +57,28 @@ export default function MediationSessionPage() {
   const [session, setSession] = useState<MediationSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("overview");
+  const navScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkNavScroll = () => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 10);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+  };
+
+  useEffect(() => {
+    checkNavScroll();
+  }, [tab]);
+
+  const scrollNav = (direction: "left" | "right") => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    const amount = direction === "left" ? -160 : 160;
+    el.scrollBy({ left: amount, behavior: "smooth" });
+    setTimeout(checkNavScroll, 200);
+  };
   const [analyzing, setAnalyzing] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -305,7 +328,7 @@ export default function MediationSessionPage() {
   return (
     <div className="min-h-dvh flex flex-col">
       <TopBar />
-      <main id="main-content" tabIndex={-1} className="flex-1 max-w-[1100px] mx-auto px-4 sm:px-6 py-5 sm:py-8 pb-24 w-full">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-[1100px] mx-auto px-4 sm:px-6 py-5 sm:py-8 pb-28 sm:pb-8 w-full">
         {/* Back / refresh row */}
         <div className="flex items-center justify-between gap-3 mb-4 sm:mb-5">
           <Link href="/mediation" className="inline-flex items-center gap-1.5 text-navy font-semibold text-[13px] sm:text-[14px] no-underline hover:text-navy-dark transition-colors group">
@@ -388,26 +411,61 @@ export default function MediationSessionPage() {
 
         {/* ═══ Sidebar + Content ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 items-start">
-          {/* ── Sidebar nav ── */}
-          <nav className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
-            {NAV.map(({ key, label, Icon, desc }) => (
-              <button key={key} onClick={() => setTab(key)}
-                className={`flex items-center gap-3 flex-none lg:w-full px-3.5 py-3 rounded-xl text-left transition-all border ${
-                  tab === key
-                    ? "bg-navy text-white border-navy shadow-md shadow-navy/15"
-                    : "bg-white text-sutra-ink border-sutra-line hover:border-navy/30 hover:bg-tint/60"
-                }`}>
-                <span className={`flex-none w-9 h-9 rounded-lg grid place-items-center ${tab === key ? "bg-white/15" : "bg-tint"}`}>
-                  <Icon className={tab === key ? "text-white" : "text-navy"} />
-                </span>
-                <span className="hidden lg:block min-w-0">
-                  <span className={`block text-[13px] sm:text-[14px] font-semibold leading-tight ${tab === key ? "text-white" : "text-sutra-ink"}`}>{label}</span>
-                  <span className={`block text-[11px] sm:text-[12px] leading-tight mt-0.5 ${tab === key ? "text-white/70" : "text-sutra-ink-3"}`}>{desc}</span>
-                </span>
-                <span className="lg:hidden text-[13px] sm:text-[14px] font-semibold whitespace-nowrap">{label}</span>
+          {/* ── Sidebar nav (Bug #1686: scroll affordance, snap, and chevrons on mobile) ── */}
+          <div className="relative w-full lg:w-auto">
+            {canScrollLeft && (
+              <button
+                type="button"
+                onClick={() => scrollNav("left")}
+                aria-label="Scroll tabs left"
+                className="lg:hidden absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-white shadow-md border border-sutra-line grid place-items-center text-navy hover:bg-tint"
+              >
+                <I.ChevronL className="w-3.5 h-3.5" />
               </button>
-            ))}
-          </nav>
+            )}
+
+            {canScrollRight && (
+              <button
+                type="button"
+                onClick={() => scrollNav("right")}
+                aria-label="Scroll tabs right"
+                className="lg:hidden absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-white shadow-md border border-sutra-line grid place-items-center text-navy hover:bg-tint"
+              >
+                <I.ChevronR className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            <nav
+              ref={navScrollRef}
+              onScroll={checkNavScroll}
+              className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scroll-smooth snap-x snap-mandatory px-1 scrollbar-thin"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              {NAV.map(({ key, label, Icon, desc }) => (
+                <button
+                  key={key}
+                  onClick={(e) => {
+                    setTab(key);
+                    e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+                  }}
+                  className={`flex items-center gap-2.5 sm:gap-3 flex-none lg:w-full px-3 sm:px-3.5 py-2.5 sm:py-3 rounded-xl text-left transition-all border snap-start ${
+                    tab === key
+                      ? "bg-navy text-white border-navy shadow-md shadow-navy/15"
+                      : "bg-white text-sutra-ink border-sutra-line hover:border-navy/30 hover:bg-tint/60"
+                  }`}
+                >
+                  <span className={`flex-none w-8 h-8 sm:w-9 sm:h-9 rounded-lg grid place-items-center ${tab === key ? "bg-white/15" : "bg-tint"}`}>
+                    <Icon className={tab === key ? "text-white" : "text-navy"} />
+                  </span>
+                  <span className="hidden lg:block min-w-0">
+                    <span className={`block text-[13px] sm:text-[14px] font-semibold leading-tight ${tab === key ? "text-white" : "text-sutra-ink"}`}>{label}</span>
+                    <span className={`block text-[11px] sm:text-[12px] leading-tight mt-0.5 ${tab === key ? "text-white/70" : "text-sutra-ink-3"}`}>{desc}</span>
+                  </span>
+                  <span className="lg:hidden text-[13px] sm:text-[14px] font-semibold whitespace-nowrap">{label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
 
           {/* ── Content ── */}
           <div className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 min-h-[300px]">
@@ -829,9 +887,15 @@ export default function MediationSessionPage() {
         <span className="fixed bottom-[68px] sm:bottom-[76px] right-5 sm:right-6 z-50 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow">1</span>
       )}
 
-      {/* ═══ Chat Panel ═══ */}
+      {/* ═══ Chat Panel (Bug #1687: responsive modal & mobile backdrop) ═══ */}
       {chatOpen && (
-        <div className="fixed bottom-24 sm:bottom-[76px] right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[400px] h-[min(calc(100vh-140px),560px)] bg-white border border-sutra-line rounded-2xl shadow-2xl shadow-black/10 flex flex-col overflow-hidden animate-in">
+        <>
+          <div
+            className="sm:hidden fixed inset-0 bg-black/40 z-40 backdrop-blur-[1px] transition-opacity animate-in"
+            onClick={() => setChatOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed bottom-24 sm:bottom-[76px] right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[400px] h-[min(calc(100vh-140px),560px)] bg-white border border-sutra-line rounded-2xl shadow-2xl shadow-black/10 flex flex-col overflow-hidden animate-in">
           <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-sutra-line bg-white flex-none">
             <span className="w-9 h-9 rounded-full bg-navy text-white grid place-items-center flex-none"><I.Chat className="w-[18px] h-[18px]" /></span>
             <div className="flex-1 min-w-0"><h4 className="text-[14px] sm:text-[15px] font-bold text-sutra-ink leading-tight">Mediator Chat</h4><p className="text-[11px] sm:text-[12px] text-sutra-ink-3">{analyzed ? "Ask about this dispute" : "Unlocks after analysis"}</p></div>
@@ -861,6 +925,7 @@ export default function MediationSessionPage() {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* Toast */}

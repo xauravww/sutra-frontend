@@ -907,7 +907,7 @@ export default function CaseDetailPage() {
     <div className="min-h-dvh flex flex-col">
       <TopBar />
 
-      <main id="main-content" tabIndex={-1} className="flex-1 max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 w-full">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-[940px] mx-auto px-4 sm:px-6 py-5 sm:py-8 pb-28 sm:pb-8 w-full">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-5 sm:mb-6">
           <div className="min-w-0">
@@ -1123,88 +1123,96 @@ export default function CaseDetailPage() {
             )}
           </div>
 
-          {/* Document list */}
+          {/* Document list (Bug #1688: responsive layout, no text collision, accessible touch targets) */}
           {hasDocs && (
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-3 space-y-2.5">
               {documents.map((d) => (
                 <li
                   key={d.id}
-                  className="flex items-center gap-2.5 sm:gap-3 border border-sutra-line rounded-xl px-3 sm:px-3.5 py-2.5"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-sutra-line rounded-xl p-3 sm:px-3.5 sm:py-2.5 bg-white transition-colors"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="w-5 h-5 text-navy flex-none">
-                    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-                    <path d="M14 3v5h5" />
-                  </svg>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13.5px] sm:text-[14px] font-semibold text-sutra-ink truncate">
-                      {d.original_filename}
-                    </p>
-                    <p className="text-[11.5px] text-sutra-ink-3">
-                      {formatBytes(d.file_size_bytes)}
-                      {d.page_count ? ` · ${d.page_count}p` : ""}
-                      {d.document_type && d.document_type !== "OTHER" ? ` · ${d.document_type}` : ""}
-                    </p>
-                    <span className={`inline-flex items-center gap-1 mt-1 text-[11px] font-semibold ${
-                      getDocumentAnalysisState(d) === "complete"
-                        ? "text-green-700"
-                        : getDocumentAnalysisState(d) === "analyzing"
-                        ? "text-blue-700"
-                        : getDocumentAnalysisState(d) === "failed"
-                        ? "text-red-700"
-                        : "text-sutra-ink-3"
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        getDocumentAnalysisState(d) === "complete"
-                          ? "bg-green-500"
-                          : getDocumentAnalysisState(d) === "analyzing"
-                          ? "bg-blue-500 animate-pulse"
-                          : getDocumentAnalysisState(d) === "failed"
-                          ? "bg-red-500"
-                          : "bg-sutra-ink-3"
-                      }`} />
-                      {getDocumentAnalysisState(d) === "complete"
-                        ? "Analyzed"
-                        : getDocumentAnalysisState(d) === "analyzing"
-                        ? "Analyzing…"
-                        : getDocumentAnalysisState(d) === "failed"
-                        ? "Analysis failed"
-                        : "Pending analysis"}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => analyzeDocument(d)}
-                    disabled={getDocumentAnalysisState(d) === "analyzing" || isProcessing}
-                    className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-navy hover:underline bg-transparent border-0 cursor-pointer flex-none disabled:opacity-50 disabled:cursor-default"
-                  >
-                    {getDocumentAnalysisState(d) === "analyzing" ? <Spinner className="w-3.5 h-3.5" /> : null}
-                    {getDocumentAnalysisState(d) === "complete" ? "Re-analyze" : "Analyze"}
-                  </button>
-                  <button
-                    onClick={() => openViewer(d)}
-                    className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-navy hover:underline flex-none bg-transparent border-0 cursor-pointer"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-                      <circle cx="12" cy="12" r="3" />
+                  <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="w-5 h-5 text-navy flex-none mt-0.5 sm:mt-0">
+                      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 3v5h5" />
                     </svg>
-                    View
-                  </button>
-                  <button
-                    onClick={() => deleteDoc(d.id, d.original_filename)}
-                    disabled={deletingDocId === d.id}
-                    title="Delete document"
-                    className="w-8 h-8 flex-none grid place-items-center rounded-lg text-sutra-ink-3 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
-                  >
-                    {deletingDocId === d.id ? (
-                      <Spinner className="w-4 h-4" />
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" className="w-[18px] h-[18px]">
-                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13.5px] sm:text-[14px] font-semibold text-sutra-ink truncate">
+                        {d.original_filename}
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <span className="text-[11.5px] text-sutra-ink-3">
+                          {formatBytes(d.file_size_bytes)}
+                          {d.page_count ? ` · ${d.page_count}p` : ""}
+                          {d.document_type && d.document_type !== "OTHER" ? ` · ${d.document_type}` : ""}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
+                          getDocumentAnalysisState(d) === "complete"
+                            ? "text-green-700"
+                            : getDocumentAnalysisState(d) === "analyzing"
+                            ? "text-blue-700"
+                            : getDocumentAnalysisState(d) === "failed"
+                            ? "text-red-700"
+                            : "text-sutra-ink-3"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            getDocumentAnalysisState(d) === "complete"
+                              ? "bg-green-500"
+                              : getDocumentAnalysisState(d) === "analyzing"
+                              ? "bg-blue-500 animate-pulse"
+                              : getDocumentAnalysisState(d) === "failed"
+                              ? "bg-red-500"
+                              : "bg-sutra-ink-3"
+                          }`} />
+                          {getDocumentAnalysisState(d) === "complete"
+                            ? "Analyzed"
+                            : getDocumentAnalysisState(d) === "analyzing"
+                            ? "Analyzing…"
+                            : getDocumentAnalysisState(d) === "failed"
+                            ? "Analysis failed"
+                            : "Pending analysis"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 sm:gap-2.5 flex-none self-end sm:self-center border-t border-sutra-line-2 sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => analyzeDocument(d)}
+                      disabled={getDocumentAnalysisState(d) === "analyzing" || isProcessing}
+                      className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-navy hover:text-navy-dark px-2.5 py-1.5 min-h-[36px] rounded-lg hover:bg-tint transition-colors cursor-pointer flex-none disabled:opacity-50 disabled:cursor-default"
+                    >
+                      {getDocumentAnalysisState(d) === "analyzing" ? <Spinner className="w-3.5 h-3.5" /> : null}
+                      {getDocumentAnalysisState(d) === "complete" ? "Re-analyze" : "Analyze"}
+                    </button>
+                    <button
+                      onClick={() => openViewer(d)}
+                      className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-navy hover:text-navy-dark px-2.5 py-1.5 min-h-[36px] rounded-lg hover:bg-tint transition-colors flex-none cursor-pointer"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                        <circle cx="12" cy="12" r="3" />
                       </svg>
-                    )}
-                  </button>
+                      View
+                    </button>
+                    <button
+                      onClick={() => deleteDoc(d.id, d.original_filename)}
+                      disabled={deletingDocId === d.id}
+                      title="Delete document"
+                      aria-label="Delete document"
+                      className="w-9 h-9 min-h-[36px] flex-none grid place-items-center rounded-lg text-sutra-ink-3 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40 cursor-pointer"
+                    >
+                      {deletingDocId === d.id ? (
+                        <Spinner className="w-4 h-4" />
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" className="w-[18px] h-[18px]">
+                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -1738,9 +1746,15 @@ export default function CaseDetailPage() {
         <span className="fixed bottom-[68px] sm:bottom-[76px] right-5 sm:right-6 z-50 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow">1</span>
       )}
 
-      {/* ═══ Case Assistant Panel ═══ */}
+      {/* ═══ Case Assistant Panel (Bug #1687: responsive modal & mobile backdrop) ═══ */}
       {chatOpen && (
-        <div className="fixed bottom-24 sm:bottom-[76px] right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[400px] h-[min(calc(100vh-140px),560px)] bg-white border border-sutra-line rounded-2xl shadow-2xl shadow-black/10 flex flex-col overflow-hidden animate-in">
+        <>
+          <div
+            className="sm:hidden fixed inset-0 bg-black/40 z-40 backdrop-blur-[1px] transition-opacity animate-in"
+            onClick={() => setChatOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed bottom-24 sm:bottom-[76px] right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[400px] h-[min(calc(100vh-140px),560px)] bg-white border border-sutra-line rounded-2xl shadow-2xl shadow-black/10 flex flex-col overflow-hidden animate-in">
           <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-sutra-line bg-white flex-none">
             <span className="w-9 h-9 rounded-full bg-navy text-white grid place-items-center flex-none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" /></svg></span>
             <div className="flex-1 min-w-0"><h4 className="text-[14px] sm:text-[15px] font-bold text-sutra-ink leading-tight">Case Assistant</h4><p className="text-[11px] sm:text-[12px] text-sutra-ink-3">Ask about this case</p></div>
@@ -1780,6 +1794,7 @@ export default function CaseDetailPage() {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* ═══ Create / edit custom card modal ═══ */}
