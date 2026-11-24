@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Public_Sans, Sora, Inter, Bricolage_Grotesque, Inter_Tight } from "next/font/google";
+import { Public_Sans, Newsreader, Inter } from "next/font/google";
 import ClientProviders from "@/components/ClientProviders";
 import SkipLink from "@/components/SkipLink";
 import "./globals.css";
@@ -11,10 +11,11 @@ const publicSans = Public_Sans({
   display: "swap",
 });
 
-const sora = Sora({
+const newsreader = Newsreader({
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
-  variable: "--font-sora",
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-newsreader",
   display: "swap",
 });
 
@@ -22,20 +23,6 @@ const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-inter",
-  display: "swap",
-});
-
-const bricolage = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-brico",
-  display: "swap",
-});
-
-const interTight = Inter_Tight({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-intertight",
   display: "swap",
 });
 
@@ -50,7 +37,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${publicSans.variable} ${sora.variable} ${inter.variable} ${bricolage.variable} ${interTight.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className={`${publicSans.variable} ${newsreader.variable} ${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {/* Bug #1600 (WCAG 2.1 SC 2.4.1): first focusable element in the
             document, ahead of every header/nav, so the first Tab press can

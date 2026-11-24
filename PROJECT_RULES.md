@@ -16,28 +16,31 @@ Last synced from siblings: 2026-11-24.
 |---|---|
 | Stack | Next.js 16 (App Router), React 19, Tailwind v4 (`@tailwindcss/postcss`) |
 | Runtime | dev server on **PM2**, name `sutra-frontend`, port **3100** (`next dev -p 3100`) |
-| Backend | `tvsbackend` on port 4000 (`/api/v1`) |
-| Head | `src/app/layout.tsx` — fonts via `next/font/google` (Public Sans, **Bricolage Grotesque**, **Inter Tight**) |
+| Backend | `tvsbackend-upgraded` on port **3015** (`/api/v1`; modernized feature set) |
+| Head | `src/app/layout.tsx` — fonts via `next/font/google` (Public Sans, **Newsreader**, **Inter**) |
 | Home page | `src/app/page.tsx` (landing; was a redirect to `/login`) |
 | Global styles | `src/app/globals.css` (Tailwind v4 `@theme` tokens + landing motion) |
 
 ## Design tokens (this app)
 
-Architectural navy system (adopted from LandingHero "Strategic Scaffolding" professional-services
-theme; tailored to judges & mediators).
+Bespoke editorial "record/docket" system — fully original, no theme. Warm paper,
+dark ink, hairline rules, one deep-green accent, serif display. Deliberately unlike
+any SaaS template.
 
 | Token | Value |
 |---|---|
-| Ink / text | `#072136` |
-| Primary navy | `#0c3c60` (buttons, rails, headings accents) |
-| Blueprint surface | `#d8e8f2` (borders, muted lines) |
-| Light surface | `#eef3f8` (section grounds) |
-| Accent (inverted) | `#ffffff` on navy |
-| Display font | Bricolage Grotesque (`var(--font-brico)`) |
-| Body font | Inter Tight (`var(--font-intertight)`) |
-| Corners | sharp (no radius) — `rounded-none` |
-| Shadow | offset brutalist `4–8px 4–8px 0` navy/ink |
+| Paper (background) | `#F5F1E9` |
+| Paper lift | `#FBF9F3` |
+| Ink / text | `#1B1611` |
+| Soft text | `#4A4238` |
+| Hairline / rule | `#E2DAC9` |
+| Accent (deep green) | `#1F3A2F` (seal, current-stage dot, em word) |
+| Display font | Newsreader (`var(--font-newsreader)`), serif, 400–700 |
+| Body font | Inter (`var(--font-inter)`) |
+| Corners | sharp; seal/status dots rounded |
+| Shadow | soft stacked-paper `0 30px 60px -28px rgba(27,22,17,.45)` |
 | Legacy app font | Public Sans (`var(--font-public-sans)`) |
+| Visual language | layered paper folios, ruled ledger rows, index rows, seal motif |
 
 ---
 
@@ -61,7 +64,7 @@ theme; tailored to judges & mediators).
 - Use shared/atomic styling. Read colors, radii, and fonts from the tokens above
   (`globals.css` `@theme` + the landing CSS). No stray literal hex at a call site unless it
   is a documented token value.
-- Prefer composition: `Link`/`a` for navigation, solid navy buttons as a consistent style,
+- Prefer composition: `Link`/`a` for navigation, solid ink or green buttons as a consistent style,
   `FeatureCard`/`Step`/`ProductMock` for the landing. Do not re-implement the same control
   per page.
 
@@ -116,7 +119,7 @@ theme; tailored to judges & mediators).
 ## Rule 9 — Not applicable here (inherited from siblings, dropped)
 
 - Multi-language / next-intl — this app ships an English UI.
-- A single "one-font" rule — we use a 3-family token set (Bricolage Grotesque / Inter Tight / Public Sans).
+- A single "one-font" rule — we use a 3-family token set (Newsreader / Inter / Public Sans).
 - Stock-photo libraries — no Unsplash-style photography in this project.
 - Runtime tenant roles / admin CRUD rules that belong to the backend repo, not frontend.
 
