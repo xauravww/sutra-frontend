@@ -17,23 +17,27 @@ Last synced from siblings: 2026-11-24.
 | Stack | Next.js 16 (App Router), React 19, Tailwind v4 (`@tailwindcss/postcss`) |
 | Runtime | dev server on **PM2**, name `sutra-frontend`, port **3100** (`next dev -p 3100`) |
 | Backend | `tvsbackend` on port 4000 (`/api/v1`) |
-| Head | `src/app/layout.tsx` — fonts via `next/font/google` (Public Sans, **Sora**, **Inter**) |
+| Head | `src/app/layout.tsx` — fonts via `next/font/google` (Public Sans, **Bricolage Grotesque**, **Inter Tight**) |
 | Home page | `src/app/page.tsx` (landing; was a redirect to `/login`) |
 | Global styles | `src/app/globals.css` (Tailwind v4 `@theme` tokens + landing motion) |
 
 ## Design tokens (this app)
 
+Architectural navy system (adopted from LandingHero "Strategic Scaffolding" professional-services
+theme; tailored to judges & mediators).
+
 | Token | Value |
 |---|---|
-| Body bg | `#e9eaee` |
-| Surface | `#ffffff` |
-| Ink | `#161616` |
-| Mist panel | `#f4f5f7` |
-| Accent (single cobalt) | `#2f5bff`, glow `0 6px 18px rgba(47,91,255,.28)` |
-| Headline font | Sora (`var(--font-sora)`), 700/800, `tracking-[-0.02em]` |
-| Body font | Inter (`var(--font-inter)`) |
+| Ink / text | `#072136` |
+| Primary navy | `#0c3c60` (buttons, rails, headings accents) |
+| Blueprint surface | `#d8e8f2` (borders, muted lines) |
+| Light surface | `#eef3f8` (section grounds) |
+| Accent (inverted) | `#ffffff` on navy |
+| Display font | Bricolage Grotesque (`var(--font-brico)`) |
+| Body font | Inter Tight (`var(--font-intertight)`) |
+| Corners | sharp (no radius) — `rounded-none` |
+| Shadow | offset brutalist `4–8px 4–8px 0` navy/ink |
 | Legacy app font | Public Sans (`var(--font-public-sans)`) |
-| Radius | cards `14–20px`, buttons pill / rounded-full |
 
 ---
 
@@ -57,7 +61,7 @@ Last synced from siblings: 2026-11-24.
 - Use shared/atomic styling. Read colors, radii, and fonts from the tokens above
   (`globals.css` `@theme` + the landing CSS). No stray literal hex at a call site unless it
   is a documented token value.
-- Prefer composition: `Link`/`a` for navigation, pill buttons as a consistent style,
+- Prefer composition: `Link`/`a` for navigation, solid navy buttons as a consistent style,
   `FeatureCard`/`Step`/`ProductMock` for the landing. Do not re-implement the same control
   per page.
 
@@ -112,7 +116,7 @@ Last synced from siblings: 2026-11-24.
 ## Rule 9 — Not applicable here (inherited from siblings, dropped)
 
 - Multi-language / next-intl — this app ships an English UI.
-- A single "one-font" rule — we use a 3-family token set (Sora/Inter/Public Sans).
+- A single "one-font" rule — we use a 3-family token set (Bricolage Grotesque / Inter Tight / Public Sans).
 - Stock-photo libraries — no Unsplash-style photography in this project.
 - Runtime tenant roles / admin CRUD rules that belong to the backend repo, not frontend.
 
