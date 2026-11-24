@@ -1,6 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, Scale } from "lucide-react";
+import {
+  ArrowRight,
+  FileText,
+  Gavel,
+  Inbox,
+  PenLine,
+  Scale,
+  Search,
+} from "lucide-react";
 import Logo from "@/components/Logo";
 
 export const metadata: Metadata = {
@@ -19,7 +27,10 @@ export default function Home() {
       <main id="main-content" className="flex-1">
         <Hero />
         <Statement />
+        <PillarsSection />
         <WorkingRecord />
+        <WorkflowSection />
+        <ClosingBand />
       </main>
       <Footer />
     </div>
@@ -58,10 +69,7 @@ function Hero() {
     <section className="relative overflow-hidden border-b border-[#E2DAC9]">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 sm:py-24 lg:grid-cols-[1.05fr_auto]">
         <div className="max-w-3xl">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#1F3A2F]">
-            Case intelligence for judges, mediators and counsel
-          </p>
-          <h1 className={`mt-3 text-[46px] font-semibold leading-[1.04] tracking-[-0.02em] sm:text-[66px] ${serif}`}>
+          <h1 className={`text-[46px] font-semibold leading-[1.04] tracking-[-0.02em] sm:text-[66px] ${serif}`}>
             A clear case record
             <br />
             Then a confident <span className="text-[#1F3A2F]">decision</span>
@@ -148,6 +156,62 @@ function Statement() {
   );
 }
 
+function PillarsSection() {
+  const pillars = [
+    {
+      n: "01",
+      icon: <FileText className="h-5 w-5 text-[#1F3A2F]" strokeWidth={2} />,
+      title: "Record",
+      body: "Collate filings, evidence and submissions into a single, ordered case file with full source provenance.",
+    },
+    {
+      n: "02",
+      icon: <PenLine className="h-5 w-5 text-[#1F3A2F]" strokeWidth={2} />,
+      title: "Prepare",
+      body: "Draft findings, memos and settlement terms from the record, linked section by section to verified exhibits.",
+    },
+    {
+      n: "03",
+      icon: <Gavel className="h-5 w-5 text-[#1F3A2F]" strokeWidth={2} />,
+      title: "Settle",
+      body: "Pass drafts through judge and mediator review with complete audit trails before issuing final orders.",
+    },
+  ];
+
+  return (
+    <section className="border-b border-[#E2DAC9] bg-[#F5F1E9]">
+      <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
+        <div className="max-w-2xl">
+          <h2 className={`text-[32px] font-semibold tracking-[-0.015em] sm:text-[38px] ${serif}`}>
+            The work, done with precision
+          </h2>
+          <p className="mt-3 text-[16px] leading-relaxed text-[#4A4238]">
+            Three connected stages to review, prepare and settle with a clear chain of record.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {pillars.map((p) => (
+            <div
+              key={p.n}
+              className="border border-[#E2DAC9] bg-[#FBF9F3] p-7 transition-transform hover:-translate-y-1"
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-11 w-11 items-center justify-center border border-[#1F3A2F]/20 bg-[#F5F1E9]">
+                  {p.icon}
+                </span>
+                <span className={`text-[13px] font-semibold text-[#1F3A2F] ${sans}`}>{p.n}</span>
+              </div>
+              <h3 className={`mt-6 text-[22px] font-semibold tracking-[-0.01em] ${serif}`}>{p.title}</h3>
+              <p className="mt-2 text-[15px] leading-relaxed text-[#4A4238]">{p.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function WorkingRecord() {
   const rows = [
     {
@@ -211,6 +275,92 @@ function WorkingRecord() {
   );
 }
 
+function WorkflowSection() {
+  const steps = [
+    {
+      icon: <Inbox className="h-5 w-5 text-[#1F3A2F]" strokeWidth={2} />,
+      n: "01",
+      title: "Intake",
+      body: "Upload pleadings, annexes and court notices directly into the docket.",
+    },
+    {
+      icon: <Search className="h-5 w-5 text-[#1F3A2F]" strokeWidth={2} />,
+      n: "02",
+      title: "Analyze",
+      body: "The analysis pipeline extracts timeline events and cross-references exhibits.",
+    },
+    {
+      icon: <Gavel className="h-5 w-5 text-[#1F3A2F]" strokeWidth={2} />,
+      n: "03",
+      title: "Appraise",
+      body: "Judge and mediator review proceeds with line-item citations to evidence.",
+    },
+    {
+      icon: <PenLine className="h-5 w-5 text-[#1F3A2F]" strokeWidth={2} />,
+      n: "04",
+      title: "Order",
+      body: "Finalize reasoned orders or settlement terms with verified signatures.",
+    },
+  ];
+
+  return (
+    <section id="workflow" className="border-b border-[#E2DAC9] bg-[#FBF9F3]">
+      <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
+        <div className="max-w-2xl">
+          <h2 className={`text-[32px] font-semibold tracking-[-0.015em] sm:text-[38px] ${serif}`}>
+            Four stages, one verified record
+          </h2>
+          <p className="mt-3 text-[16px] leading-relaxed text-[#4A4238]">
+            Each stage unlocks when the previous stage is settled, maintaining evidentiary integrity.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((s) => (
+            <div
+              key={s.n}
+              className="border border-[#E2DAC9] bg-[#F5F1E9] p-6 transition-transform hover:-translate-y-1"
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-10 w-10 items-center justify-center border border-[#1F3A2F]/20 bg-white">
+                  {s.icon}
+                </span>
+                <span className={`text-[13px] font-semibold text-[#1F3A2F] ${sans}`}>{s.n}</span>
+              </div>
+              <h3 className={`mt-5 text-[19px] font-semibold tracking-[-0.01em] ${serif}`}>{s.title}</h3>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-[#4A4238]">{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ClosingBand() {
+  return (
+    <section className="bg-[#1F3A2F] text-white">
+      <div className="mx-auto max-w-4xl px-5 py-20 text-center sm:py-24">
+        <h2 className={`text-[32px] font-semibold tracking-[-0.015em] text-white sm:text-[44px] ${serif}`}>
+          A case worth deciding starts with a clear record
+        </h2>
+        <p className="mx-auto mt-4 max-w-xl text-[16.5px] leading-relaxed text-white/80">
+          Set up the workspace in minutes and run the first matter with verified citations from filing to final order.
+        </p>
+        <div className="mt-8 flex justify-center">
+          <Link
+            href="/register"
+            className="inline-flex items-center gap-2 bg-[#F5F1E9] px-7 py-3.5 text-[15px] font-medium text-[#1B1611] transition-opacity hover:opacity-90"
+          >
+            Start free trial
+            <ArrowRight className="h-4 w-4" strokeWidth={2} />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Footer() {
   return (
     <footer className="border-t border-[#E2DAC9] bg-[#F5F1E9] py-12 text-[#4A4238]">
@@ -228,6 +378,9 @@ function Footer() {
           </Link>
           <a href="#working-record" className="hover:text-[#1B1611] transition-colors">
             The record
+          </a>
+          <a href="#workflow" className="hover:text-[#1B1611] transition-colors">
+            Workflow
           </a>
         </div>
         <p className="text-[12.5px] text-[#4A4238]">
