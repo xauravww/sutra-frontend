@@ -391,3 +391,86 @@ input::-webkit-contacts-auto-fill-button {
   border-left: 3px solid var(--color-sutra-line);
   color: var(--color-sutra-ink-2);
 }
+
+/* ---------------------------------------------------------------------------
+ * Landing page (home)
+ * ------------------------------------------------------------------------- */
+@keyframes land-rise {
+  from {
+    transform: translateY(16px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.land-enter {
+  animation: land-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.land-enter-d1 { animation-delay: 0.08s; }
+.land-enter-d2 { animation-delay: 0.16s; }
+.land-enter-d3 { animation-delay: 0.26s; }
+.land-enter-d4 { animation-delay: 0.34s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .land-enter {
+    animation: none;
+  }
+}
+
+.land-card {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.land-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px -22px rgba(22, 22, 22, 0.25);
+}
+
+.land-btn {
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.land-btn:hover {
+  transform: translateY(-1px);
+}
+.land-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Landing ground (soft cobalt radial) */
+.land-ground {
+  background-image: radial-gradient(60% 42% at 50% 0%, rgba(47, 91, 255, 0.10) 0%, rgba(47, 91, 255, 0) 70%);
+}
+
+/* Workflow diagram pulse */
+@keyframes flow-pulse {
+  0% { opacity: 0.25; transform: translateX(0); }
+  50% { opacity: 1; }
+  100% { opacity: 0.25; transform: translateX(var(--flow-shift, 40px)); }
+}
+.flow-line {
+  position: relative;
+  overflow: hidden;
+}
+.flow-line::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-cobalt, #2f5bff);
+  transform: translateY(-50%);
+  animation: flow-pulse 2.6s ease-in-out infinite;
+}
+.flow-line-d1::after { animation-delay: 0s; }
+.flow-line-d2::after { animation-delay: 0.9s; }
+.flow-line-d3::after { animation-delay: 1.8s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-line::after {
+    animation: none;
+    opacity: 0.7;
+  }
+}

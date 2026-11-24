@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Public_Sans } from "next/font/google";
+import { Public_Sans, Sora, Inter } from "next/font/google";
 import ClientProviders from "@/components/ClientProviders";
 import SkipLink from "@/components/SkipLink";
 import "./globals.css";
@@ -8,6 +8,20 @@ const publicSans = Public_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-public-sans",
+  display: "swap",
+});
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-sora",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -22,7 +36,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${publicSans.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className={`${publicSans.variable} ${sora.variable} ${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {/* Bug #1600 (WCAG 2.1 SC 2.4.1): first focusable element in the
             document, ahead of every header/nav, so the first Tab press can
