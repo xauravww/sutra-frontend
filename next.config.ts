@@ -68,6 +68,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Do not advertise the framework version (bug #1595).
   poweredByHeader: false,
+  allowedDevOrigins: [
+    "localhost",
+    "127.0.0.1",
+    "100.81.27.4",
+    "160.250.225.5",
+  ],
 
   images: {
     remotePatterns: [

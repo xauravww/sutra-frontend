@@ -21,7 +21,9 @@ export default function RegisterPage() {
   return (
     <div className="h-dvh overflow-hidden flex flex-col bg-sutra-bg">
       <header className="flex-none border-b border-sutra-line bg-white px-5 py-3.5 sm:px-8">
-        <Logo className="h-7 sm:h-8 w-auto" />
+        <Link href="/" className="inline-flex items-center" aria-label="Sutra home">
+          <Logo className="h-7 sm:h-8 w-auto" />
+        </Link>
       </header>
 
       <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 grid place-items-center px-4 py-5 sm:px-6">
