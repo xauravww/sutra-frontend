@@ -26,7 +26,7 @@ const I = {
   FileText: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" /></svg>,
   Calendar: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>,
   Chat: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" /></svg>,
-  Sparkles: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" /><path d="M20 3v4M22 5h-4" /></svg>,
+  Wand: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={gc(p)}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" /></svg>,
   ChevronL: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={gc(p, "w-4 h-4")}><path d="M15 18l-6-6 6-6" /></svg>,
   ChevronR: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={gc(p, "w-4 h-4")}><path d="M9 18l6-6-6-6" /></svg>,
   X: (p?: IProps) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={gc(p, "w-4 h-4")}><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg>,
@@ -151,7 +151,7 @@ export default function MediationSessionPage() {
       // Fire-and-forget: start analysis but don't wait
       mediation.analyze(sessionId).catch(() => {});
       // Immediately show toast
-      setToast({ message: "Analysis started — this may take a few minutes. You can leave this tab or page, we'll notify you when it's ready.", type: "success" });
+      setToast({ message: "Analysis started: this may take a few minutes. You can leave this tab or page, we will notify you when it is ready.", type: "success" });
       // Start polling every 15s to check if analysis completed
       const poll = setInterval(async () => {
         try {
@@ -195,7 +195,7 @@ export default function MediationSessionPage() {
     const valid = arr.filter(f => f.type === "application/pdf" || f.type.startsWith("image/"));
     const oversized = valid.filter(f => f.size > MAX_FILE_SIZE_MB * 1024 * 1024);
     if (oversized.length > 0) {
-      showToast(`${oversized.length} file(s) ignored — max file size is ${MAX_FILE_SIZE_MB} MB.`, "error");
+      showToast(`${oversized.length} file(s) ignored: max file size is ${MAX_FILE_SIZE_MB} MB.`, "error");
     }
     const acceptable = valid.filter(f => f.size <= MAX_FILE_SIZE_MB * 1024 * 1024);
     if (acceptable.length === 0) return;
@@ -206,7 +206,7 @@ export default function MediationSessionPage() {
       showToast(
         roomFor === 0
           ? `This session has reached the maximum of ${MAX_DOCS_PER_CASE} documents.`
-          : `Only ${roomFor} more document(s) allowed — sessions are capped at ${MAX_DOCS_PER_CASE}.`,
+          : `Only ${roomFor} more document(s) allowed: sessions are capped at ${MAX_DOCS_PER_CASE}.`,
         "error"
       );
     }
@@ -311,7 +311,7 @@ export default function MediationSessionPage() {
       return;
     }
     try {
-      showToast("Analyzing documents…", "success");
+      showToast("Analyzing documents", "success");
       const r = await mediation.syncFromDocs(sessionId) as any;
       const d = r.data;
       setSession(d);
@@ -342,7 +342,7 @@ export default function MediationSessionPage() {
             className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-sutra-ink-2 bg-white border border-sutra-line rounded-lg px-2.5 py-1.5 hover:bg-tint hover:text-navy hover:border-navy/30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <svg className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /><path d="M21 3v5h-5" /></svg>
-            <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
+            <span>{refreshing ? "Refreshing" : "Refresh"}</span>
           </button>
         </div>
 
@@ -366,7 +366,7 @@ export default function MediationSessionPage() {
               ) : (
                 <div className="flex items-center gap-1.5">
                   <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-white bg-navy border-0 rounded-lg px-2.5 py-1.5 hover:bg-navy-dark transition-colors disabled:opacity-50">
-                    {saving ? "Saving…" : "Save"}
+                    {saving ? "Saving" : "Save"}
                   </button>
                   <button onClick={() => { setEditing(false); setEditTitle(session.title); setEditPartyA(session.party_a_name); setEditPartyB(session.party_b_name); setEditSummary(session.dispute_summary || ""); }} className="text-[12px] sm:text-[13px] font-semibold text-sutra-ink-3 hover:text-sutra-ink px-2 py-1.5 transition-colors">Cancel</button>
                 </div>
@@ -492,14 +492,14 @@ export default function MediationSessionPage() {
                   <p className="text-[13px] sm:text-[14px] text-sutra-ink-3 max-w-[340px] mx-auto mb-5 leading-relaxed">
                     {noDocsYet
                       ? "Upload case files and evidence in the Documents tab to begin. Party positions and strength appear here after the comparative analysis runs."
-                      : "Documents are ready. Start the comparative analysis from the Analysis tab — party positions and strength will appear here."}
+                      : "Documents are ready. Start the comparative analysis from the Analysis tab: party positions and strength will appear here."}
                   </p>
                   <button
                     type="button"
                     onClick={() => setTab(noDocsYet ? "documents" : "analysis")}
                     className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark shadow-sm"
                   >
-                    {noDocsYet ? (<><I.Upload className="w-4 h-4" />Upload documents</>) : (<><I.Sparkles className="w-4 h-4" />Go to Analysis</>)}
+                    {noDocsYet ? (<><I.Upload className="w-4 h-4" />Upload documents</>) : (<><I.BarChart className="w-4 h-4" />Go to Analysis</>)}
                   </button>
                 </div>
               )
@@ -532,7 +532,7 @@ export default function MediationSessionPage() {
                     <button onClick={doAnalyze} disabled={!canRunAnalysis} aria-disabled={!canRunAnalysis}
                       title={analyzing ? "Analysis in progress" : noDocsYet ? "Please upload documents first" : "Run the comparative analysis"}
                       className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-3.5 sm:px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark disabled:opacity-60 disabled:cursor-not-allowed flex-none shadow-sm">
-                      {analyzing ? (<><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" className="opacity-25" /><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="24" strokeLinecap="round" /></svg>Processing…</>) : (<><I.Sparkles className="w-4 h-4" />Run Analysis</>)}
+                      {analyzing ? (<><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" className="opacity-25" /><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="24" strokeLinecap="round" /></svg>Processing</>) : (<><I.BarChart className="w-4 h-4" />Run Analysis</>)}
                     </button>
                   </div>
                 </div>
@@ -542,7 +542,7 @@ export default function MediationSessionPage() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-navy mt-[1px] flex-none"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
                     <span>
                       {noDocsYet
-                        ? "Please upload documents first — add case files in the Documents tab, then run analysis."
+                        ? "Please upload documents first: add case files in the Documents tab, then run analysis."
                         : "Please run analysis to generate scores and download party summaries."}
                     </span>
                   </div>
@@ -553,18 +553,18 @@ export default function MediationSessionPage() {
                     <div className="grid grid-cols-2 gap-3 sm:gap-4"><ScoreCard label="Party A" score={a.party_a_strength_score ?? 50} c="navy" /><ScoreCard label="Party B" score={a.party_b_strength_score ?? 50} c="amber" /></div>
                     <div className="bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-4">
                       <div className="flex items-center gap-2 mb-1.5"><I.Star className="w-4 h-4 text-navy" /><span className="text-[12px] sm:text-[13px] font-bold uppercase tracking-widest text-sutra-ink-3">Dominant Party</span></div>
-                      <p className="text-[15px] sm:text-[16px] font-semibold text-sutra-ink pl-6">{a.dominating_party === "BALANCED" ? "Balanced — no clear advantage" : a.dominating_party || "—"}</p>
+                      <p className="text-[15px] sm:text-[16px] font-semibold text-sutra-ink pl-6">{a.dominating_party === "BALANCED" ? "Balanced: no clear advantage" : a.dominating_party || ""}</p>
                     </div>
 
                     {/* Party summaries: compare both sides side by side on larger screens. */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                       <div className="space-y-4">
-                        <PartySummary title="Party A — Favorable Points" items={a.party_a_favorable_points} color="navy" type="favorable" />
-                        <PartySummary title="Party A — Weaknesses" items={a.party_a_opposing_allegations} color="navy" type="opposing" />
+                        <PartySummary title="Party A: Favorable Points" items={a.party_a_favorable_points} color="navy" type="favorable" />
+                        <PartySummary title="Party A: Weaknesses" items={a.party_a_opposing_allegations} color="navy" type="opposing" />
                       </div>
                       <div className="space-y-4">
-                        <PartySummary title="Party B — Favorable Points" items={a.party_b_favorable_points} color="amber" type="favorable" />
-                        <PartySummary title="Party B — Weaknesses" items={a.party_b_opposing_allegations} color="amber" type="opposing" />
+                        <PartySummary title="Party B: Favorable Points" items={a.party_b_favorable_points} color="amber" type="favorable" />
+                        <PartySummary title="Party B: Weaknesses" items={a.party_b_opposing_allegations} color="amber" type="opposing" />
                       </div>
                     </div>
 
@@ -595,7 +595,7 @@ export default function MediationSessionPage() {
                     {/* Recommended Questions */}
                     {a.recommended_questions && Array.isArray(a.recommended_questions) && a.recommended_questions.length > 0 && (
                       <div>
-                        <SectionHeading icon={<I.Sparkles className="w-4 h-4 text-navy" />} title="Recommended Questions for Mediator" />
+                        <SectionHeading icon={<I.Chat className="w-4 h-4 text-navy" />} title="Recommended Questions for Mediator" />
                         <div className="space-y-2 pl-6">
                           {a.recommended_questions.map((q: any, i: number) => (
                             <div key={i} className="flex items-start gap-3 py-2.5 border-b border-sutra-line-2 last:border-0">
@@ -651,10 +651,10 @@ export default function MediationSessionPage() {
                     </div>
                     <div className="text-center">
                       <p className="text-[16px] font-semibold text-sutra-ink">Analysis in progress</p>
-                      <p className="text-[14px] text-sutra-ink-3 mt-1">This usually takes 2-3 minutes. You can navigate to other tabs — we'll notify you when it's ready.</p>
+                      <p className="text-[14px] text-sutra-ink-3 mt-1">This usually takes 2-3 minutes. You can navigate to other tabs, we will notify you when it is ready.</p>
                     </div>
                   </div>
-                ) : <Empty icon={<I.BarChart className="w-7 h-7" />} t={noDocsYet ? "No documents yet" : "No analysis yet"} d={noDocsYet ? "Please upload documents first — add case files in the Documents tab." : 'Click "Run Analysis" to generate scores and unlock downloads.'} />}
+                ) : <Empty icon={<I.BarChart className="w-7 h-7" />} t={noDocsYet ? "No documents yet" : "No analysis yet"} d={noDocsYet ? "Please upload documents first: add case files in the Documents tab." : 'Click "Run Analysis" to generate scores and download party summaries.'} />}
               </div>
             )}
 
@@ -670,7 +670,7 @@ export default function MediationSessionPage() {
                 <p className="text-[16px] sm:text-[17px] font-semibold text-sutra-ink mb-1.5">Run analysis before settlement</p>
                 <p className="text-[13px] sm:text-[14px] text-sutra-ink-3 max-w-[360px] mx-auto mb-5 leading-relaxed">
                   {noDocsYet
-                    ? "Upload case files in the Documents tab first — the comparative analysis has to run before you can record settlement notes."
+                    ? "Upload case files in the Documents tab first: the comparative analysis has to run before you can record settlement notes."
                     : "The comparative analysis has not run yet. Generate it first so settlement notes build on the parties' analysed positions."}
                 </p>
                 <button
@@ -739,7 +739,7 @@ export default function MediationSessionPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <h3 className="flex items-center gap-2 text-[15px] sm:text-[17px] font-bold"><I.FileText className="w-5 h-5 text-navy" />Documents</h3>
-                        {files.length > 0 && <span className="text-[12px] sm:text-[13px] text-sutra-ink-3">{files.length} file{files.length !== 1 ? "s" : ""}{pendingCount > 0 ? ` · ${pendingCount} pending` : uploadingCount > 0 ? ` · uploading…` : ` · all uploaded`}</span>}
+                        {files.length > 0 && <span className="text-[12px] sm:text-[13px] text-sutra-ink-3">{files.length} file{files.length !== 1 ? "s" : ""}{pendingCount > 0 ? ` · ${pendingCount} pending` : uploadingCount > 0 ? ` · uploading` : ` · all uploaded`}</span>}
                       </div>
                       <div className="flex items-center gap-2 flex-none">
                         {pendingCount > 0 && <button onClick={uploadAll} className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-3.5 sm:px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark shadow-sm"><I.Upload className="w-4 h-4" />Upload All ({pendingCount})</button>}
@@ -755,7 +755,7 @@ export default function MediationSessionPage() {
                             <button type="button"
                               onClick={() => { setUploadNotice(false); setTab("analysis"); doAnalyze(); }}
                               className="inline-flex items-center gap-1.5 rounded-lg bg-navy text-white font-semibold px-2.5 py-1.5 transition-colors hover:bg-navy-dark">
-                              <I.Sparkles className="w-3.5 h-3.5" />Generate analysis
+                              <I.BarChart className="w-3.5 h-3.5" />Generate analysis
                             </button>
                             <span className="text-green-800/70">or</span>
                             <button type="button"
@@ -775,7 +775,7 @@ export default function MediationSessionPage() {
                       className={`border-2 border-dashed rounded-2xl p-8 sm:p-10 text-center cursor-pointer transition-all ${dragOver ? "border-navy bg-tint/60 scale-[1.01]" : "border-sutra-line hover:border-navy/40 hover:bg-tint/30"}`}
                       onClick={() => fileInputRef.current?.click()}>
                       <p className="text-[14px] sm:text-[15px] font-semibold text-sutra-ink mb-1">Drop files here or click to browse</p>
-                      <p className="text-[12px] sm:text-[13px] text-sutra-ink-3">PDF, images — assign to Party A, Party B, or both</p>
+                      <p className="text-[12px] sm:text-[13px] text-sutra-ink-3">PDF, images: assign to Party A, Party B, or both</p>
                     </div>
 
                     {/* File list */}
@@ -898,14 +898,14 @@ export default function MediationSessionPage() {
           <div className="fixed bottom-24 sm:bottom-[76px] right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[400px] h-[min(calc(100vh-140px),560px)] bg-white border border-sutra-line rounded-2xl shadow-2xl shadow-black/10 flex flex-col overflow-hidden animate-in">
           <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-sutra-line bg-white flex-none">
             <span className="w-9 h-9 rounded-full bg-navy text-white grid place-items-center flex-none"><I.Chat className="w-[18px] h-[18px]" /></span>
-            <div className="flex-1 min-w-0"><h4 className="text-[14px] sm:text-[15px] font-bold text-sutra-ink leading-tight">Mediator Chat</h4><p className="text-[11px] sm:text-[12px] text-sutra-ink-3">{analyzed ? "Ask about this dispute" : "Unlocks after analysis"}</p></div>
+            <div className="flex-1 min-w-0"><h4 className="text-[14px] sm:text-[15px] font-bold text-sutra-ink leading-tight">Mediator Chat</h4><p className="text-[11px] sm:text-[12px] text-sutra-ink-3">{analyzed ? "Ask about this dispute" : "Available after analysis"}</p></div>
             <button onClick={() => setChatOpen(false)} className="w-8 h-8 rounded-lg grid place-items-center hover:bg-tint transition-colors text-sutra-ink-3"><I.X className="w-4 h-4" /></button>
           </div>
           <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 space-y-2.5">
             {!analyzed && (
               <div className="flex items-start gap-2 rounded-xl bg-amber-bg border border-amber-200 px-3 py-2.5 text-[12px] sm:text-[12.5px] leading-snug text-amber-800">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-amber-600 mt-[1px] flex-none"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
-                <span>Chat is locked until the comparative analysis completes. {noDocsYet ? "Upload documents first, then run analysis." : "Run analysis from the Analysis tab to unlock."}</span>
+                <span>Chat is available after the comparative analysis completes. {noDocsYet ? "Upload documents first, then run analysis." : "Run analysis from the Analysis tab to start."}</span>
               </div>
             )}
             {chatMessages.length === 0 && (<div className="flex flex-col items-center justify-center h-full text-center py-8"><div className="w-12 h-12 rounded-2xl bg-tint text-navy grid place-items-center mb-3 border border-tint-2"><I.Chat className="w-5 h-5" /></div><p className="text-[13px] sm:text-[14px] font-semibold text-sutra-ink mb-0.5">{analyzed ? "Start a conversation" : "Mediator chat"}</p><p className="text-[12px] text-sutra-ink-3">{analyzed ? "Ask about parties, disputes, or settlement." : "Ask questions once the dispute has been analysed."}</p></div>)}
@@ -920,8 +920,8 @@ export default function MediationSessionPage() {
           </div>
           <div className="px-4 sm:px-5 py-3 border-t border-sutra-line bg-white flex-none">
             <div className="flex gap-2">
-              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doChat(); }} disabled={!analyzed} placeholder={analyzed ? "Ask about this dispute…" : "Chat unlocks after analysis"} aria-label="Ask about this dispute" className="flex-1 min-h-[42px] border border-sutra-line rounded-xl px-4 font-[inherit] text-[13px] sm:text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3 disabled:bg-sutra-line-2/50 disabled:cursor-not-allowed" />
-              <button onClick={doChat} disabled={!analyzed || !chatInput.trim() || chatLoading} aria-disabled={!analyzed || !chatInput.trim() || chatLoading} title={analyzed ? "Send message" : "Chat unlocks after analysis"} className="w-10 h-10 rounded-xl bg-navy text-white grid place-items-center flex-none transition-all hover:bg-navy-dark disabled:opacity-40 disabled:cursor-not-allowed"><I.Send className="w-[18px] h-[18px]" /></button>
+              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doChat(); }} disabled={!analyzed} placeholder={analyzed ? "Ask about this dispute" : "Chat available after analysis"} aria-label="Ask about this dispute" className="flex-1 min-h-[42px] border border-sutra-line rounded-xl px-4 font-[inherit] text-[13px] sm:text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3 disabled:bg-sutra-line-2/50 disabled:cursor-not-allowed" />
+              <button onClick={doChat} disabled={!analyzed || !chatInput.trim() || chatLoading} aria-disabled={!analyzed || !chatInput.trim() || chatLoading} title={analyzed ? "Send message" : "Chat available after analysis"} className="w-10 h-10 rounded-xl bg-navy text-white grid place-items-center flex-none transition-all hover:bg-navy-dark disabled:opacity-40 disabled:cursor-not-allowed"><I.Send className="w-[18px] h-[18px]" /></button>
             </div>
           </div>
         </div>
@@ -959,7 +959,7 @@ function PartyCard({ label, name, initial, align = "left" }: { label: string; na
   return <div className={`flex items-center gap-2.5 sm:gap-3 min-w-0 ${right ? "flex-row-reverse text-right" : ""}`}><span className="flex-none w-9 h-9 sm:w-[40px] sm:h-[40px] rounded-full bg-tint-2 text-navy grid place-items-center font-bold text-[14px] sm:text-[16px] border border-[#CFE0F0]">{initial}</span><div className="min-w-0"><div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-sutra-ink-3">{label}</div><div className="text-[15px] sm:text-[16px] font-semibold text-sutra-ink leading-tight truncate">{name}</div></div></div>;
 }
 function PosCard({ label, val, c }: { label: string; val?: string; c: "navy" | "amber" }) {
-  return <div className="bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-3.5"><div className="flex items-center gap-1.5 mb-1.5"><span className={`w-2 h-2 rounded-full ${c === "navy" ? "bg-navy" : "bg-amber-400"}`} /><span className="text-[11px] sm:text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">{label}</span></div><p className="text-[14px] sm:text-[15px] text-sutra-ink leading-relaxed">{val || "Awaiting analysis."}</p></div>;
+  return <div className="bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-3.5"><div className="flex items-center gap-1.5 mb-1.5"><span className={`w-2 h-2 rounded-full ${c === "navy" ? "bg-navy" : "bg-amber-400"}`} /><span className="text-[11px] sm:text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">{label}</span></div><p className="text-[14px] sm:text-[15px] text-sutra-ink leading-relaxed">{val || "Awaiting analysis"}</p></div>;
 }
 function ScoreCard({ label, score, c }: { label: string; score: number; c: "navy" | "amber" }) {
   return <div className="bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-3.5 sm:p-4"><div className="flex items-center gap-1.5 mb-2"><span className={`w-2 h-2 rounded-full ${c === "navy" ? "bg-navy" : "bg-amber-400"}`} /><span className="text-[11px] sm:text-[12px] font-bold uppercase tracking-widest text-sutra-ink-3">{label}</span></div><div className="flex items-end gap-1.5"><span className="text-[28px] sm:text-[32px] font-bold tracking-tight leading-none">{score}</span><span className="text-[13px] sm:text-[14px] text-sutra-ink-3 mb-0.5">/ 100</span></div><div className="mt-2.5 h-2 bg-sutra-line-2 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-500 ${c === "navy" ? "bg-navy" : "bg-amber-400"}`} style={{ width: `${score}%` }} /></div></div>;
@@ -1027,7 +1027,7 @@ function TimelineTab({ session, analysis, docs }: { session: any; analysis: any;
     events.push({
       date: new Date(analysis.analyzed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       label: "Comparative Analysis Complete",
-      desc: `Party A scored ${analysis.party_a_strength_score ?? "—"}/100, Party B scored ${analysis.party_b_strength_score ?? "—"}/100. Dominant: ${analysis.dominating_party === "BALANCED" ? "Balanced" : analysis.dominating_party || "—"}.`,
+      desc: `Party A scored ${analysis.party_a_strength_score ?? ""}/100, Party B scored ${analysis.party_b_strength_score ?? ""}/100. Dominant: ${analysis.dominating_party === "BALANCED" ? "Balanced" : analysis.dominating_party || "Not determined"}.`,
       color: "green",
     });
   }
@@ -1150,14 +1150,14 @@ function SettlementTab({ analysis, sessionId, onRefresh }: { analysis: any; sess
               <div className="chat-markdown text-[14px] sm:text-[15px] text-sutra-ink leading-relaxed"><Markdown>{notes}</Markdown></div>
             )
           ) : (
-            <p className="text-[13px] sm:text-[14px] text-sutra-ink-3">Nothing written yet — switch to Write to start.</p>
+            <p className="text-[13px] sm:text-[14px] text-sutra-ink-3">Nothing written yet: switch to Write to start.</p>
           )}
         </div>
       )}
 
       <div className="flex items-center gap-3">
         <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-2 bg-navy text-white border-0 rounded-lg text-[13px] sm:text-[14px] font-semibold px-4 py-2 min-h-[36px] transition-all hover:bg-navy-dark disabled:opacity-50 flex-none shadow-sm">
-          {saving ? "Saving…" : saved ? "✓ Saved" : "Save Notes"}
+          {saving ? "Saving" : saved ? "✓ Saved" : "Save Notes"}
         </button>
         {saved && <span className="text-[13px] text-green-600 font-medium">Settlement notes saved successfully</span>}
       </div>

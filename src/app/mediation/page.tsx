@@ -244,7 +244,7 @@ export default function MediationDirectoryPage() {
           <div className="bg-white border border-sutra-line border-t-[3px] border-t-navy rounded-2xl p-4 sm:p-6 mb-6">
             <div className="flex items-start justify-between gap-3 mb-3">
               <h2 className="text-[15px] sm:text-[17px] font-bold text-sutra-ink leading-snug">
-                Welcome to Sutra Mediation — here&apos;s the quick path
+                Welcome to Sutra Mediation: here&apos;s the quick path
               </h2>
               <button
                 type="button"
@@ -259,7 +259,7 @@ export default function MediationDirectoryPage() {
               {[
                 { n: "1", t: "Create a session", d: "Name the dispute and the two parties, or auto-fill from the sample cases below." },
                 { n: "2", t: "Upload documents", d: "Add case files & evidence for Party A and Party B inside the session." },
-                { n: "3", t: "Run analysis & settle", d: "The system compares both sides — then chat and draft settlement notes." },
+                { n: "3", t: "Run analysis & settle", d: "The system compares both sides, then chat and draft settlement notes." },
               ].map((s) => (
                 <li key={s.n} className="flex gap-2.5 sm:gap-3 flex-1 bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-3">
                   <span className="flex-none w-6 h-6 rounded-full bg-navy text-white grid place-items-center text-[12px] font-bold">{s.n}</span>
@@ -275,7 +275,7 @@ export default function MediationDirectoryPage() {
               onClick={dismissTour}
               className="inline-flex items-center justify-center gap-2 bg-navy text-white border-0 rounded-xl px-5 py-2.5 text-[13px] sm:text-[14px] font-semibold hover:bg-navy-dark transition-colors cursor-pointer"
             >
-              Got it — let&apos;s start
+              Got it: let&apos;s start
             </button>
           </div>
         )}
@@ -285,7 +285,7 @@ export default function MediationDirectoryPage() {
           <div className="bg-white border border-sutra-line rounded-2xl p-4 sm:p-6 mb-6">
             <h3 className="text-[16px] sm:text-[17px] font-bold text-sutra-ink mb-1.5">Create New Session</h3>
             <p className="text-[12.5px] sm:text-[13px] text-sutra-ink-3 mb-4">
-              Everything you enter here can be edited later from the session page — or expanded with more information at any time.
+              Everything you enter here can be edited later from the session page, or expanded with more information at any time.
             </p>
 
             {/* Sample session presets & PDF bundles (collapsed by default) */}
@@ -304,14 +304,14 @@ export default function MediationDirectoryPage() {
 
               {showSampleData && (
                 <div className="mt-3 space-y-2" aria-label="Sample mediation cases">
-                  {sampleLoading && <p className="text-[12px] text-sutra-ink-3">Loading sample documents…</p>}
+                  {sampleLoading && <p className="text-[12px] text-sutra-ink-3">Loading sample documents</p>}
                   {!sampleLoading && sampleDocuments.length > 0 && <p className="text-[12px] text-green-700">2 sample documents are ready and will be uploaded with this session.</p>}
                   {[
                     {
                       id: 1 as const,
                       title: "Case 1: Construction Contract",
                       parties: "Shivalik Constructions (Party A) vs. Greenfield Developers (Party B)",
-                      sessionTitle: "Construction Contract — Unpaid Certified Bills & Defective Works",
+                      sessionTitle: "Construction Contract: Unpaid Certified Bills and Defective Works",
                       partyA: "M/s Shivalik Constructions Pvt. Ltd.",
                       partyB: "M/s Greenfield Developers Pvt. Ltd.",
                       partyAPdf: "/sample-documents/Mediation_Case1_PartyA_LegalNotice.pdf",
@@ -321,7 +321,7 @@ export default function MediationDirectoryPage() {
                       id: 2 as const,
                       title: "Case 2: Data Services Dispute",
                       parties: "Orion Analytics (Party A) vs. Vector Systems (Party B)",
-                      sessionTitle: "Data Services Agreement — Unpaid Retainer & SLA Breach Counterclaim",
+                      sessionTitle: "Data Services Agreement: Unpaid Retainer and SLA Breach Counterclaim",
                       partyA: "M/s Orion Analytics Pvt. Ltd.",
                       partyB: "M/s Vector Systems Ltd.",
                       partyAPdf: "/sample-documents/Mediation_Case2_PartyA_LegalNotice.pdf",
@@ -382,8 +382,11 @@ export default function MediationDirectoryPage() {
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-navy">
-                    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
-                    <path d="M20 3v4M22 5h-4" />
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
                   </svg>
                   <span className="text-[13px] sm:text-[14px] font-semibold text-sutra-ink">Smart Fill from Documents</span>
                 </div>
@@ -398,7 +401,7 @@ export default function MediationDirectoryPage() {
                 </button>
                 {smartFillFiles.length > 0 && (
                   <button type="button" onClick={handleSmartFill} disabled={smartFilling} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white bg-navy border-0 rounded-lg px-3 py-1.5 hover:bg-navy-dark transition-colors disabled:opacity-50">
-                    {smartFilling ? (<><svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" className="opacity-25" /><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="24" strokeLinecap="round" /></svg>Analyzing…</>) : (<>✨ Auto-fill</>) }
+                    {smartFilling ? (<><svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" className="opacity-25" /><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="24" strokeLinecap="round" /></svg>Analyzing</>) : (<>Auto-fill</>) }
                   </button>
                 )}
                 {smartFillFiles.length > 0 && <button type="button" onClick={() => setSmartFillFiles([])} className="text-[12px] text-sutra-ink-3 hover:text-red-600 transition-colors">Clear</button>}
@@ -444,7 +447,7 @@ export default function MediationDirectoryPage() {
             {error && <p className="text-[13px] text-red-700 mb-3">{error}</p>}
             <div className="flex gap-3">
               <Button loading={creating} disabled={sampleLoading} onClick={handleCreate}>
-                {creating ? "Creating..." : "Create Session"}
+                {creating ? "Creating" : "Create Session"}
               </Button>
               <button
                 onClick={() => { setShowNew(false); setShowSampleData(false); setExpandedSampleCase(null); setSelectedSampleCase(null); setSampleDocuments([]); }}
@@ -468,7 +471,7 @@ export default function MediationDirectoryPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search sessions..."
+              placeholder="Search sessions"
               className="border-0 bg-transparent outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 w-full font-[inherit] text-[15px] sm:text-[17px] text-sutra-ink placeholder:text-sutra-ink-3"
             />
           </label>
@@ -502,7 +505,7 @@ export default function MediationDirectoryPage() {
               </div>
               <p className="text-[16px] sm:text-[17px] font-semibold text-sutra-ink mb-1">No sessions found</p>
               <p className="text-[14px] sm:text-[15px] text-sutra-ink-3">
-                {search ? "Try a different search term" : "No sessions yet — click \"New Session\" to create your first one."}
+                {search ? "Try a different search term" : "No sessions yet. Click \"New Session\" to create your first one."}
               </p>
               {!search && (
                 <button
@@ -618,13 +621,13 @@ export default function MediationDirectoryPage() {
             </div>
             <div className="space-y-3 text-[13.5px] sm:text-[14px] leading-relaxed text-sutra-ink-2">
               <p>
-                The Mediation Act, 2023 establishes the legal framework for mediation in India — covering pre-litigation mediation, institutional mediation, and enforceability of mediated settlement agreements.
+                The Mediation Act, 2023 establishes the legal framework for mediation in India, covering pre-litigation mediation, institutional mediation, and enforceability of mediated settlement agreements.
               </p>
               <p>
                 Sutra runs structured mediation sessions under this framework: each session records the parties, the dispute, uploaded case documents, a comparative analysis, and any settlement agreement reached.
               </p>
               <p className="text-[12.5px] text-sutra-ink-3">
-                This panel reflects the Act&apos;s emphasis on confidentiality and party autonomy — nothing you enter here is shared outside your workspace.
+                This panel reflects the Act&apos;s emphasis on confidentiality and party autonomy: nothing you enter here is shared outside your workspace.
               </p>
             </div>
             <button type="button" onClick={() => setShowActInfo(false)} className="mt-5 w-full inline-flex items-center justify-center rounded-xl bg-navy text-white border-0 px-4 py-2.5 text-[14px] sm:text-[15px] font-semibold hover:bg-navy-dark transition-colors cursor-pointer">Got it</button>
