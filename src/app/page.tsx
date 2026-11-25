@@ -187,7 +187,7 @@ function Footer() {
           <Logo className="h-6 w-auto" />
           <span className="text-[13px] font-medium text-sutra-ink-3">Legal Intelligence Workspace</span>
         </div>
-        <div className="flex items-center gap-6 text-[14px]">
+        <div className="flex flex-wrap items-center justify-center gap-6 text-[14px]">
           <Link href="/login" className="hover:text-navy transition-colors">
             Sign in
           </Link>
@@ -197,6 +197,12 @@ function Footer() {
           <a href="#how-cases-are-handled" className="hover:text-navy transition-colors">
             How cases are handled
           </a>
+          <Link href="/privacy" className="hover:text-navy transition-colors">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="hover:text-navy transition-colors">
+            Terms of Service
+          </Link>
         </div>
         <p className="text-[12.5px] text-sutra-ink-3">
           &copy; {new Date().getFullYear()} Sutra. All rights reserved.
