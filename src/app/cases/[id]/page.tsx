@@ -29,7 +29,7 @@ const SAMPLE_CASES = [
   {
     id: 1,
     title: "Case 1: Cheating & Forgery",
-    summary: "State of Maharashtra vs. Rajesh Kumar — IPC 420, 467, 468, 471 r/w 120B",
+    summary: "State of Maharashtra vs. Rajesh Kumar: IPC 420, 467, 468, 471 r/w 120B",
     files: [
       "/sample-documents/Judge_Case1_FIR_FirstInformationReport.pdf",
       "/sample-documents/Judge_Case1_ChargeSheet_FinalReport.pdf",
@@ -41,7 +41,7 @@ const SAMPLE_CASES = [
   {
     id: 2,
     title: "Case 2: Bank Fraud (CBI)",
-    summary: "State (CBI) vs. Suresh Yadav & Ors. — IPC 408, 409, 420, 471 r/w 120B",
+    summary: "State (CBI) vs. Suresh Yadav & Ors.: IPC 408, 409, 420, 471 r/w 120B",
     files: [
       "/sample-documents/Judge_Case2_FIR_FirstInformationReport.pdf",
       "/sample-documents/Judge_Case2_ChargeSheet_FinalReport.pdf",
@@ -187,7 +187,7 @@ const CARD_ICONS: Record<string, React.ReactNode> = {
       <path d="M4 22v-7" />
     </>
   ),
-  sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z" />,
+  sparkle: <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />,
   gavel: (
     <>
       <path d="m14 13-8.5 8.5a2.12 2.12 0 1 1-3-3L11 10" />
@@ -236,7 +236,7 @@ const TAB_OPTIONS: { tab: Tab; label: string }[] = [
   { tab: "courts", label: "Courts" },
 ];
 
-/** Human label for an item deep-link target, e.g. "Party 2 — Rajesh Kumar Mehta". */
+/** Human label for an item deep-link target, e.g. "Party 2: Rajesh Kumar Mehta". */
 function itemLabel(data: JudicialCaseDetail, tab: Tab, index: number): string {
   const name = (v: unknown) => (v && typeof v === "object" && "name" in v && typeof (v as { name?: unknown }).name === "string" ? (v as { name: string }).name : "");
   let list: unknown[] = [];
@@ -376,7 +376,7 @@ export default function CaseDetailPage() {
           setAnalyzing(false);
           toast(
             res.data.status === "structured"
-              ? "Analysis complete — case sections are ready."
+              ? "Analysis complete: case sections are ready."
               : "Analysis failed. Please run it again.",
             res.data.status === "structured" ? "success" : "error"
           );
@@ -534,7 +534,7 @@ export default function CaseDetailPage() {
       toast(
         roomFor === 0
           ? `This case has reached the maximum of ${MAX_DOCS_PER_CASE} documents. Delete one before uploading.`
-          : `Only ${roomFor} more document(s) allowed — cases are capped at ${MAX_DOCS_PER_CASE}.`,
+          : `Only ${roomFor} more document(s) allowed: cases are capped at ${MAX_DOCS_PER_CASE}.`,
         "error"
       );
       return;
@@ -590,7 +590,7 @@ export default function CaseDetailPage() {
     try {
       await judicialCases.analyze(caseId);
       setCaseData((p) => (p ? { ...p, status: "processing" } : p));
-      toast("Analysis started — this may take a minute. The tabs update when it's ready.", "success");
+      toast("Analysis started: this may take a minute. The tabs update when it is ready.", "success");
       startPolling();
     } catch (err) {
       setAnalyzing(false);
@@ -673,7 +673,7 @@ export default function CaseDetailPage() {
      external source_url, and if neither exists we surface an error. A fresh
      presigned URL is fetched each open. */
   const openSource = async (documentId: number, page?: number | null) => {
-    setSourceViewer({ url: "", title: "Loading source…" });
+    setSourceViewer({ url: "", title: "Loading source" });
     setSourceLoading(true);
     try {
       const src = await corpusService.getPublishedSource(documentId);
@@ -880,7 +880,7 @@ export default function CaseDetailPage() {
   // builds the section cards from those summaries.
   const anyDocumentAnalyzed = documents.some((doc) => getDocumentAnalysisState(doc) === "complete");
   const analysisTooltip = isProcessing
-    ? "Analysis is running — you can leave this page."
+    ? "Analysis is running: you can leave this page."
     : !anyDocumentAnalyzed
     ? "Please upload and analyze at least one document to generate the summary of these cards."
     : "";
@@ -1023,8 +1023,8 @@ export default function CaseDetailPage() {
 
               {showSampleData && (
                 <div className="mt-3 space-y-2" aria-label="Sample court cases">
-                  {sampleLoading && <p className="text-[12px] text-sutra-ink-3">Loading sample documents…</p>}
-                  {!sampleLoading && selectedSampleCase && <p className="text-[12px] text-green-700">Sample documents are uploading — run &quot;Run Case Analysis&quot; afterwards.</p>}
+                  {sampleLoading && <p className="text-[12px] text-sutra-ink-3">Loading sample documents</p>}
+                  {!sampleLoading && selectedSampleCase && <p className="text-[12px] text-green-700">Sample documents are uploading: run &quot;Run Case Analysis&quot; afterwards.</p>}
                   {SAMPLE_CASES.map((sample) => (
                     <div
                       key={sample.id}
@@ -1096,7 +1096,7 @@ export default function CaseDetailPage() {
             {uploading ? (
               <div className="flex flex-col items-center gap-2">
                 <Spinner className="w-7 h-7 text-navy" />
-                <p className="text-[14px] font-semibold text-sutra-ink-2">Uploading…</p>
+                <p className="text-[14px] font-semibold text-sutra-ink-2">Uploading</p>
               </div>
             ) : (
               <>
@@ -1167,7 +1167,7 @@ export default function CaseDetailPage() {
                           {getDocumentAnalysisState(d) === "complete"
                             ? "Analyzed"
                             : getDocumentAnalysisState(d) === "analyzing"
-                            ? "Analyzing…"
+                            ? "Analyzing"
                             : getDocumentAnalysisState(d) === "failed"
                             ? "Analysis failed"
                             : "Pending analysis"}
@@ -1243,7 +1243,7 @@ export default function CaseDetailPage() {
               <div className="min-w-0">
                 <p className="text-[14px] font-bold text-sutra-ink leading-tight">
                   {isProcessing
-                    ? "Analyzing case…"
+                    ? "Analyzing case"
                     : isStructured
                     ? "Analysis ready"
                     : allDocumentsAnalyzed && caseData.status === "failed"
@@ -1254,13 +1254,13 @@ export default function CaseDetailPage() {
                 </p>
                 <p className="text-[12px] text-sutra-ink-3">
                   {isProcessing
-                    ? "You can leave this page — we’ll notify you when the analysis is ready."
+                    ? "You can leave this page: we will notify you when the analysis is ready."
                     : isStructured
                     ? "Sections below are populated from your documents"
                     : allDocumentsAnalyzed && caseData.status === "failed"
                     ? "All documents are analyzed. Run case analysis to populate the case sections."
                     : !anyDocumentAnalyzed
-                    ? "Analyze at least one document first — the button above unlocks once a summary exists."
+                    ? "Analyze at least one document first: the button above becomes available once a summary exists."
                     : "Run analysis to populate the case sections"}
                 </p>
               </div>
@@ -1280,7 +1280,7 @@ export default function CaseDetailPage() {
                     <path d="M21 3v6h-6" />
                   </svg>
                 )}
-                {isProcessing ? "Analyzing…" : isStructured ? "Regenerate" : "Run Case Analysis"}
+                {isProcessing ? "Analyzing" : isStructured ? "Regenerate" : "Run Case Analysis"}
               </button>
               {analysisTooltip && (
                 <span
@@ -1444,7 +1444,7 @@ export default function CaseDetailPage() {
                       <button
                         onClick={() => runCustomCard(c)}
                         className="relative flex flex-col items-center text-center p-3 rounded-xl border-[1.5px] transition-all cursor-pointer gap-1.5 w-full border-sutra-line bg-white hover:border-navy hover:bg-tint"
-                        title={`${c.label}${c.subtitle ? ` — ${c.subtitle}` : ""}`}
+                        title={`${c.label}${c.subtitle ? `: ${c.subtitle}` : ""}`}
                       >
                         <span className={`w-9 h-9 rounded-[10px] grid place-items-center flex-none ${c.color ?? "bg-tint text-navy"}`}>
                           <svg
@@ -1526,13 +1526,13 @@ export default function CaseDetailPage() {
                 >
                   <Spinner className="w-8 h-8 text-navy" />
                   <p className="mt-3 text-[15px] font-semibold text-sutra-ink">
-                    Analyzing case documents…
+                    Analyzing case documents
                   </p>
                   <p className="mt-1 text-[13px] text-sutra-ink-3 max-w-[340px]">
                     {activeTab === "overview"
                       ? "Building the case brief from your documents."
                       : "Extracting this section from your documents."}{" "}
-                    You can leave this page — the tabs update automatically.
+                    You can leave this page: the tabs update automatically.
                   </p>
                 </div>
               ) : (
@@ -1598,7 +1598,7 @@ export default function CaseDetailPage() {
           <div className="relative w-full max-w-md rounded-2xl bg-white border border-sutra-line shadow-xl p-5 sm:p-6">
             <h2 id="analysis-choice-title" className="text-[17px] font-bold text-sutra-ink">Run case analysis</h2>
             <p className="text-[13px] text-sutra-ink-3 mt-1.5 mb-4">
-              Generates the case sections from the documents you've already analyzed. Documents with summaries are kept as-is — only pending or failed ones are re-analyzed.
+              Generates the case sections from the documents you've already analyzed. Documents with summaries are kept as-is: only pending or failed ones are re-analyzed.
             </p>
             <div className="space-y-2.5">
               <button
@@ -1671,7 +1671,7 @@ export default function CaseDetailPage() {
             {viewerLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sutra-ink-3">
                 <Spinner className="w-8 h-8 text-navy" />
-                <p className="text-[14px] font-semibold">Loading document…</p>
+                <p className="text-[14px] font-semibold">Loading document</p>
               </div>
             )}
             {viewerUrl && (
@@ -1717,7 +1717,7 @@ export default function CaseDetailPage() {
             {(sourceLoading || !sourceViewer.url) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sutra-ink-3">
                 <Spinner className="w-8 h-8 text-navy" />
-                <p className="text-[14px] font-semibold">Loading source…</p>
+                <p className="text-[14px] font-semibold">Loading source</p>
               </div>
             )}
             {sourceViewer.url && (
@@ -1784,12 +1784,12 @@ export default function CaseDetailPage() {
                 : <div className="max-w-[85%] px-3.5 py-2.5 rounded-2xl text-[13px] sm:text-[14px] leading-relaxed bg-[#F4F6F8] text-sutra-ink border border-sutra-line-2 rounded-bl-md chat-markdown"><Markdown>{m.content}</Markdown></div>}
               </div>
             ))}
-            {chatLoading && <div className="flex justify-start"><div className="bg-[#F4F6F8] border border-sutra-line-2 rounded-2xl rounded-bl-md px-4 py-3"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:0ms]" /><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:150ms]" /><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:300ms]" /></div>{chatSlow && <p className="mt-2 text-[11.5px] text-sutra-ink-3">Still working — a long case can take up to two minutes.</p>}</div></div>}
+            {chatLoading && <div className="flex justify-start"><div className="bg-[#F4F6F8] border border-sutra-line-2 rounded-2xl rounded-bl-md px-4 py-3"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:0ms]" /><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:150ms]" /><span className="w-2 h-2 rounded-full bg-sutra-line-2 animate-bounce [animation-delay:300ms]" /></div>{chatSlow && <p className="mt-2 text-[11.5px] text-sutra-ink-3">Still working: a long case can take up to two minutes.</p>}</div></div>}
             <div ref={chatEnd} />
           </div>
           <div className="px-4 sm:px-5 py-3 border-t border-sutra-line bg-white flex-none">
             <div className="flex gap-2">
-              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doChat(); }} placeholder="Ask about this case…" className="flex-1 min-h-[42px] border border-sutra-line rounded-xl px-4 font-[inherit] text-[13px] sm:text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3" />
+              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doChat(); }} placeholder="Ask about this case" className="flex-1 min-h-[42px] border border-sutra-line rounded-xl px-4 font-[inherit] text-[13px] sm:text-[14px] text-sutra-ink outline-none transition-all focus:border-navy focus:ring-2 focus:ring-navy/10 placeholder:text-sutra-ink-3" />
               <button onClick={doChat} disabled={!chatInput.trim() || chatLoading} className="w-10 h-10 rounded-xl bg-navy text-white grid place-items-center flex-none transition-all hover:bg-navy-dark disabled:opacity-40 disabled:cursor-not-allowed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><path d="m21.854 2.147-10.94 10.939" /></svg></button>
             </div>
           </div>
@@ -2261,7 +2261,7 @@ function PagesTab({
             <div className="min-w-0">
               <p className="text-[13.5px] font-bold text-sutra-ink">
                 {running
-                  ? `Reading page ${Math.min(completedCount + 1, total)} of ${total}…`
+                  ? `Reading page ${Math.min(completedCount + 1, total)} of ${total}`
                   : openedDocId === activeDoc.id
                   ? `${completedCount} of ${total} pages summarised`
                   : "Generate a summary for every page of this document."}
@@ -2284,7 +2284,7 @@ function PagesTab({
                 </svg>
               )}
               {running
-                ? "Summarising…"
+                ? "Summarising"
                 : openedDocId === activeDoc.id && completedCount === total
                 ? "Regenerate"
                 : "Generate page summaries"}
@@ -2308,13 +2308,13 @@ function PagesTab({
         </p>
       ) : sortedPages.length === 0 ? (
         <p className="text-[14px] text-sutra-ink-3">
-          {running ? "Starting…" : "Page summaries will appear here."}
+          {running ? "Starting" : "Page summaries will appear here."}
         </p>
       ) : (
         <div className="bg-white border border-sutra-line rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-sutra-line-2 bg-[#FAFBFD]">
             <p className="text-[12.5px] font-semibold text-sutra-ink-3">
-              Pages {viewStart}–{viewEnd} of {total}
+              Pages {viewStart} to {viewEnd} of {total}
             </p>
             {/* Pagination controls */}
             <div className="flex items-center gap-1.5">
@@ -2374,13 +2374,13 @@ function PagesTab({
                   p. {p.page_number}
                 </span>
                 <p className="text-[15px] text-sutra-ink-2 leading-relaxed">
-                  {p.summary || "Loading…"}
+                  {p.summary || "Loading"}
                 </p>
               </div>
             ))}
             {viewPages.length === 0 && (
               <p className="px-4 py-6 text-[14px] text-sutra-ink-3 text-center">
-                No summaries in this range yet — keep generating, or jump to a page above.
+                No summaries in this range yet: keep generating, or jump to a page above.
               </p>
             )}
           </div>
@@ -2423,7 +2423,7 @@ function PoliceTab({ data }: { data: JudicialCaseDetail }) {
           ].map(([label, value]) => (
             <div key={label} className="flex items-baseline gap-2.5 py-1.5 border-b border-sutra-line-2 last:border-0">
               <span className="text-sutra-ink-3 min-w-[90px] flex-none text-[14px]">{label}</span>
-              <b className="text-[14px]">{value || "—"}</b>
+              <b className="text-[14px]">{value || "Not recorded"}</b>
             </div>
           ))}
         </div>
@@ -2450,7 +2450,7 @@ function PoliceTab({ data }: { data: JudicialCaseDetail }) {
           ].map(([label, value]) => (
             <div key={label} className="flex items-baseline gap-2.5 py-1.5 border-b border-sutra-line-2 last:border-0">
               <span className="text-sutra-ink-3 min-w-[90px] flex-none text-[14px]">{label}</span>
-              <b className="text-[14px]">{value || "—"}</b>
+              <b className="text-[14px]">{value || "Not recorded"}</b>
             </div>
           ))}
         </div>
@@ -2739,7 +2739,7 @@ function CardModal({ open, editing, data, documents, onClose, onSave, saving }: 
                   onChange={(e) => { setDocId(e.target.value); setPage(1); }}
                   className="w-full min-h-[42px] border border-sutra-line rounded-xl px-3 font-[inherit] text-[14px] text-sutra-ink outline-none focus:border-navy transition-colors bg-white"
                 >
-                  <option value="">Select a document…</option>
+                  <option value="">Select a document</option>
                   {documents.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.original_filename}
