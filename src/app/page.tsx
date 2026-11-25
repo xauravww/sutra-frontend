@@ -86,7 +86,7 @@ function Hero() {
               href="/register"
               className="inline-flex items-center justify-center gap-2 bg-navy px-6 py-3.5 text-[15px] font-medium text-white transition-colors hover:bg-navy-dark"
             >
-              Start free trial
+              Start for free
               <ArrowRight className="h-4 w-4" strokeWidth={2} />
             </Link>
             <a
@@ -170,7 +170,7 @@ function ClosingBand() {
             href="/register"
             className="inline-flex items-center gap-2 bg-white px-7 py-3.5 text-[15px] font-medium text-navy transition-colors hover:bg-tint"
           >
-            Start free trial
+            Start for free
             <ArrowRight className="h-4 w-4" strokeWidth={2} />
           </Link>
         </div>
