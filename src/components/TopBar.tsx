@@ -202,7 +202,7 @@ export default function TopBar() {
             </button>
 
             {open && (
-              <div className="absolute right-0 top-[calc(100%+8px)] w-[min(360px,calc(100vw-32px))] bg-white border border-sutra-line rounded-2xl shadow-xl shadow-black/10 z-50 overflow-hidden animate-in">
+              <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto sm:right-0 top-[60px] sm:top-[calc(100%+8px)] sm:w-[360px] bg-white border border-sutra-line rounded-2xl shadow-2xl shadow-black/15 z-50 overflow-hidden animate-in">
                 <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-sutra-line bg-white">
                   <p className="text-[14px] font-bold text-sutra-ink">Notifications</p>
                   {unread > 0 && (
@@ -227,7 +227,7 @@ export default function TopBar() {
                           <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
                         </svg>
                       </div>
-                      <p className="text-[13.5px] font-semibold text-sutra-ink">You're all caught up</p>
+                      <p className="text-[13.5px] font-semibold text-sutra-ink">You&apos;re all caught up</p>
                       <p className="text-[12px] text-sutra-ink-3 mt-0.5">New alerts will appear here.</p>
                     </div>
                   ) : (
