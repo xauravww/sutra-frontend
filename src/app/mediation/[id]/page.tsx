@@ -549,6 +549,19 @@ export default function MediationSessionPage() {
                 )}
                 {analyzed ? (
                   <div className="space-y-6">
+                    {/* Fallback notice if analysis produced an even preliminary score without extracted points */}
+                    {a.party_a_strength_score === 50 && a.party_b_strength_score === 50 && (!a.party_a_favorable_points || a.party_a_favorable_points.length === 0) && (
+                      <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900" role="status">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-amber-700 mt-0.5 flex-none"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
+                        <div>
+                          <p className="font-semibold text-amber-950">Preliminary neutral evaluation (50:50)</p>
+                          <p className="mt-0.5 text-amber-800 leading-relaxed text-[12.5px]">
+                            The system returned a neutral baseline score. This occurs when the automated analysis service is initializing or document text is still being extracted. Click &quot;Run Analysis&quot; again to refresh with full evidence points.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Scores */}
                     <div className="grid grid-cols-2 gap-3 sm:gap-4"><ScoreCard label="Party A" score={a.party_a_strength_score ?? 50} c="navy" /><ScoreCard label="Party B" score={a.party_b_strength_score ?? 50} c="amber" /></div>
                     <div className="bg-[#FAFBFD] border border-sutra-line-2 rounded-xl p-4">
