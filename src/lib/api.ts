@@ -5,7 +5,9 @@
  * (credentials: "include") so httpOnly JWTs work across tab sessions.
  */
 
-export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3015";
+export const BASE =
+  process.env.NEXT_PUBLIC_API_URL ??
+  (typeof window !== "undefined" ? "" : "http://localhost:3015");
 
 /**
  * How long to wait for an AI reply before giving up (bug #1662).
